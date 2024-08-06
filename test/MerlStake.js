@@ -4,17 +4,18 @@ const { ethers } = require("hardhat");
 
 describe("Test MerlStake Contract", function () {
     async function deployFixture() {
-        [owner, addr1] = await ethers.getSigners();
+        const [owner, addr1] = await ethers.getSigners();
 
         const erc20CapAmount = BigInt("1000000000000000000000000000"); // 1e27 1G
         const approveAmount = BigInt("1000000000000000000000000"); //1e24 1M
         const stakeAmount = BigInt("1000000000000000000") //1e18 1
 
         const ERC20TokenWrapped = await ethers.getContractFactory("ERC20TokenWrapped", owner);
-        Merl = await ERC20TokenWrapped.deploy("bitmapToken", "bitmapToken", 18, erc20CapAmount);
+        const BitmapToken = await ERC20TokenWrapped.deploy("bitmapToken", "bitmapToken", 18, erc20CapAmount);
+        const Merl = await ERC20TokenWrapped.deploy("MERL", "MERL", 18, erc20CapAmount);
 
         const MerlStakeContract = await ethers.getContractFactory("MerlStake", owner);
-        MerlStake = await MerlStakeContract.deploy();
+        const MerlStake = await MerlStakeContract.deploy();
         await MerlStake.initialize(owner, Merl);
 
         return {owner, addr1, Merl, MerlStake, approveAmount, stakeAmount};
@@ -62,6 +63,6 @@ describe("Test MerlStake Contract", function () {
             console.log("afterBalance = ", afterBalance)
 
             expect(BigInt(beforeBalance)).to.equal(BigInt(afterBalance)-stakeAmount);
-            });
+        });
     });
 })
