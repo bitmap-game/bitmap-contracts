@@ -131,7 +131,6 @@ contract BitmapRent is OwnableUpgradeable {
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_bitmapToken)
-    onlyValidAddress(_withdrawer)
     onlyValidAddress(_signer) initializer {
         bitmapToken = _bitmapToken;
         withdrawer = _withdrawer;
@@ -234,14 +233,7 @@ contract BitmapRent is OwnableUpgradeable {
     * And then, subtract the rent fee from the total amount.
     */
     function getRentReturned(string calldata _rentId) public view returns(uint256) {
-        Rent memory rent = rentIdToRent[_rentId];
-        if (rent.renter == address (0)) {
-            return 0;
-        }
-
-        if (rent.stopped) {
-            return rent.returned;
-        }
+        Rent storage rent = rentIdToRent[_rentId];
 
         uint256 rentFee = _calRentFee(rent);
         return rent.deposit - rentFee;
