@@ -256,7 +256,7 @@ describe("Test BitmapRent Contract", function () {
 
             // await BitmapRent.connect(owner).withdrawReward(100);
             //'only stake contract allowed'
-            // todo 错误提示怎么表示出来
+            // todo
 
             const rewardToken = await BitmapRent.connect(owner).getRewardToken();
             const bitmapToken = await BitmapRent.connect(owner).bitmapToken();
