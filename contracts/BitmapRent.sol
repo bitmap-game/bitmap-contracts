@@ -131,6 +131,7 @@ contract BitmapRent is OwnableUpgradeable {
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_bitmapToken)
+    onlyValidAddress(_withdrawer)
     onlyValidAddress(_signer) initializer {
         bitmapToken = _bitmapToken;
         withdrawer = _withdrawer;

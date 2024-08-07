@@ -113,7 +113,8 @@ contract MerlStake is OwnableUpgradeable {
         address _initialOwner,
         address _merlContract
     ) external
-    onlyValidAddress(_initialOwner) initializer {
+    onlyValidAddress(_initialOwner)
+    onlyValidAddress(_merlContract) initializer {
         merlContract = _merlContract;
 
         // Initialize OZ contracts
