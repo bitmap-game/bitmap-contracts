@@ -2,6 +2,8 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract BitmapRent is OwnableUpgradeable {
@@ -273,7 +275,8 @@ contract BitmapRent is OwnableUpgradeable {
     function verifyRentSignature(string memory _rentId, uint256 _firstBitmap, uint256 _n, uint256 _expiration, bytes calldata _signature) public view returns (bool){
         bytes memory data = abi.encode(msg.sender, _rentId, _firstBitmap, _n, _expiration);
         bytes32 hash = keccak256(data);
-        return recoverSigner(hash, _signature);
+        address receivedAddress = ECDSA.recover(hash, _signature);
+        return receivedAddress != address(0) && receivedAddress == signer;
     }
 
     /**
@@ -553,30 +556,6 @@ contract BitmapRent is OwnableUpgradeable {
 
     function _baseRentFeeExt(uint256 rentAmount, uint256 _baseRentFeeRate) internal pure returns (uint256) {
         return rentAmount * _baseRentFeeRate / FEE_RATE_SCALE_FACTOR;
-    }
-
-    function recoverSigner(bytes32 hash, bytes memory sig) internal view returns (bool) {
-        (uint8 v, bytes32 r, bytes32 s) = splitSignature(sig);
-        return ecrecover(hash, v + 27, r, s) == signer;
-    }
-
-    function splitSignature(bytes memory sig) internal pure returns (uint8, bytes32, bytes32) {
-        require(sig.length == 65);
-
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-
-        assembly {
-        // First 32 bytes, after the length prefix
-            r := mload(add(sig, 32))
-        // Second 32 bytes
-            s := mload(add(sig, 64))
-        // Final byte (first byte of the next 32 bytes)
-            v := byte(0, mload(add(sig, 96)))
-        }
-
-        return (v, r, s);
     }
 
     //Pause ...
