@@ -1,0 +1,33 @@
+node_modules
+.env
+coverage
+coverage.json
+typechain
+typechain-types
+deploy_output.json
+deploy_output_stake.json
+test/stakingfactory.ts
+
+# Hardhat files
+cache
+artifacts
+.openzeppelin
+
+.env-test
+.env-pre-production
+.env*
+
+node_modules
+.env
+
+# Hardhat files
+/cache
+/artifacts
+
+# TypeChain files
+/typechain
+/typechain-types
+
+# solidity-coverage files
+/coverage
+/coverage.json
