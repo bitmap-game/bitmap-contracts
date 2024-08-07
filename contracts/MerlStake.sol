@@ -388,9 +388,11 @@ contract MerlStake is OwnableUpgradeable {
         }
 
         address[] memory contracts = new address[](count);
+        uint16 j = 0;
         for (uint16 i=0; i<globalRewardContracts.length; i++) {
             if (globalRewards[globalRewardContracts[i]].enabled) {
-                contracts[i] = globalRewardContracts[i];
+                contracts[j] = globalRewardContracts[i];
+                j += 1;
             }
         }
 
