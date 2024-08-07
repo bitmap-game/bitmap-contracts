@@ -239,7 +239,7 @@ contract MerlStake is OwnableUpgradeable {
     * return this account stake info with (merl, settledReward, rewardsClaimed, blockTime, perMerl).
     */
     function getStakeInfo(address _account, address _rewardContract) external view returns (uint256,uint256,uint256,uint256,uint256) {
-        Stake storage stake = accountToStake[_account];
+        Stake memory stake = accountToStake[_account];
         uint256 lastUpdateTimestamp = globalRewards[_rewardContract].updateTimestamp;
         uint256 lastScaledTotalRewardPerMel = globalRewards[_rewardContract].scaledTotalRewardsPerMerl;
         uint256 scaledRangePerMerl = lastScaledTotalRewardPerMel - stake.rewards[_rewardContract].scaledSettledRewardPerMerl;
@@ -259,7 +259,7 @@ contract MerlStake is OwnableUpgradeable {
     * finally, return this account real time stake info with (merl, settledReward, rewardsClaimed, blockTime, perMerl)
     */
     function getStakeInfoRealTime(address _account, address _rewardContract) external view returns (uint256,uint256,uint256,uint256,uint256) {
-        Stake storage stake = accountToStake[_account];
+        Stake memory stake = accountToStake[_account];
         uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl(_rewardContract);
         uint256 scaledRangePerMerl = currentScaledTotalRewardPerMel - stake.rewards[_rewardContract].scaledSettledRewardPerMerl;
         uint256 rangeReward = _unscaleRangeReward(scaledRangePerMerl, stake.merl);
@@ -274,7 +274,7 @@ contract MerlStake is OwnableUpgradeable {
     * - `_rewardContract`: the specified reward contract.
     */
     function getAccountReward(address _account, address _rewardContract) external view returns (AccountReward memory) {
-        Stake storage stake = accountToStake[_account];
+        Stake memory stake = accountToStake[_account];
         require(stake.account != address (0), "_account not exists");
         AccountReward memory accountReward = accountToStake[_account].rewards[_rewardContract];
         accountReward.scaledSettledRewardPerMerl = _unscale(accountReward.scaledSettledRewardPerMerl);
@@ -507,7 +507,7 @@ contract MerlStake is OwnableUpgradeable {
     * @dev Get current scaled total reward per merl.
     */
     function getCurrentScaledTotalRewardPerMerl(address rewardContract) public view returns(uint256){
-        GlobalReward storage globalReward = globalRewards[rewardContract];
+        GlobalReward memory globalReward = globalRewards[rewardContract];
         uint256 totalReward = IRewardContract(rewardContract).getTotalReward();
         uint256 scaledRangeRewardPerMerl = 0;
         if (totalMerl > 0) {

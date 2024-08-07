@@ -234,7 +234,14 @@ contract BitmapRent is OwnableUpgradeable {
     * And then, subtract the rent fee from the total amount.
     */
     function getRentReturned(string calldata _rentId) public view returns(uint256) {
-        Rent storage rent = rentIdToRent[_rentId];
+        Rent memory rent = rentIdToRent[_rentId];
+        if (rent.renter == address (0)) {
+            return 0;
+        }
+
+        if (rent.stopped) {
+            return rent.returned;
+        }
 
         uint256 rentFee = _calRentFee(rent);
         return rent.deposit - rentFee;
