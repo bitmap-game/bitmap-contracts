@@ -113,7 +113,8 @@ contract MerlStake is OwnableUpgradeable {
         address _initialOwner,
         address _merlContract
     ) external
-    onlyValidAddress(_initialOwner) initializer {
+    onlyValidAddress(_initialOwner)
+    onlyValidAddress(_merlContract) initializer {
         merlContract = _merlContract;
 
         // Initialize OZ contracts
@@ -506,7 +507,7 @@ contract MerlStake is OwnableUpgradeable {
     * @dev Get current scaled total reward per merl.
     */
     function getCurrentScaledTotalRewardPerMerl(address rewardContract) public view returns(uint256){
-        GlobalReward storage globalReward = globalRewards[rewardContract];
+        GlobalReward memory globalReward = globalRewards[rewardContract];
         uint256 totalReward = IRewardContract(rewardContract).getTotalReward();
         uint256 scaledRangeRewardPerMerl = 0;
         if (totalMerl > 0) {
