@@ -234,6 +234,14 @@ contract BitmapRent is OwnableUpgradeable {
 
         //return rent amount
         rent.rentFee = _calRentFee(rent);
+
+        //excessive rent fee
+        if (rent.rentFee > rent.deposit) {
+            rent.stoppedState = StoppedState.AbnormalLiquidated;
+            emit LiquidateRent(msg.sender, rent);
+            return;
+        }
+
         rent.returned = rent.deposit - rent.rentFee;
 
         IERC20(bitmapToken).transfer(msg.sender, rent.returned);
