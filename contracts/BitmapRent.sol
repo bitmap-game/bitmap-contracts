@@ -45,6 +45,7 @@ contract BitmapRent is OwnableUpgradeable {
         uint256 deposit;
         uint256 returned;
         uint256 actualRentFee;
+        uint256 liquidated;
         bool stopped;
         uint256 stoppedState; // StoppedState( 0.none 1.liquidate 2.abnormal liquidate, excessive rent fee )
         uint256 startTimestamp;
@@ -266,8 +267,9 @@ contract BitmapRent is OwnableUpgradeable {
         //update rent info
         rent.actualRentFee = rentFee;
         rent.stoppedState = StoppedState.Liquidated;
+        rent.liquidated = returned;
 
-        IERC20(bitmapToken).transfer(msg.sender, returned);
+        IERC20(bitmapToken).transfer(msg.sender, rent.liquidated);
 
         emit LiquidateRent(msg.sender, rent);
     }
