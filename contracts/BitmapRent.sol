@@ -37,6 +37,14 @@ contract BitmapRent is OwnableUpgradeable {
 
     RentStat public rentStat;
 
+    struct LiquidatedStat {
+        uint256 totalLiquidated;
+
+        uint256 totalBadDebts;
+        uint256 actualRepaid;
+    }
+    LiquidatedStat public liquidatedStat;
+
     struct Rent {
         string id;
         uint256 firstBitmap;
@@ -99,6 +107,11 @@ contract BitmapRent is OwnableUpgradeable {
     event LiquidateRent(
         address msgSender,
         Rent rent
+    );
+
+    event SettleBadDebts(
+        address msgSender,
+        uint256 amount
     );
 
     event WithdrawReward(
@@ -235,17 +248,9 @@ contract BitmapRent is OwnableUpgradeable {
         //update rent info
         rent.stopped = true;
         rent.stopTimestamp = block.timestamp;
-
         rent.rentFee = _calRentFee(rent);
+        require(rent.deposit > rent.rentFee, "excessive rent fee, can't stop");
 
-        //excessive rent fee
-        if (rent.rentFee > rent.deposit) {
-            rent.stoppedState = StoppedState.AbnormalLiquidated;
-            emit LiquidateRent(msg.sender, rent);
-            return;
-        }
-
-        //return rent amount
         rent.returned = rent.deposit - rent.rentFee;
 
         IERC20(bitmapToken).transfer(msg.sender, rent.returned);
@@ -257,17 +262,18 @@ contract BitmapRent is OwnableUpgradeable {
         require(!rentIdToRent[_rentId].stopped, "rent already terminated");
 
         Rent storage rent = rentIdToRent[_rentId];
-        rent.stopped = true;
-        rent.stopTimestamp = block.timestamp;
 
         //update stat
         _updateStopRentStat(rent.deposit);
 
+        rent.stopped = true;
+        rent.stopTimestamp = block.timestamp;
         rent.rentFee = _calRentFee(rent);
 
         //excessive rent fee
         if (rent.rentFee > rent.deposit) {
             rent.stoppedState = StoppedState.AbnormalLiquidated;
+            liquidatedStat.totalBadDebts += (rent.rentFee - rent.deposit);
             emit LiquidateRent(msg.sender, rent);
             return;
         }
@@ -278,10 +284,25 @@ contract BitmapRent is OwnableUpgradeable {
         //update rent info
         rent.stoppedState = StoppedState.Liquidated;
         rent.liquidated = liquidated;
+        liquidatedStat.totalLiquidated += liquidated;
 
         IERC20(bitmapToken).transfer(msg.sender, rent.liquidated);
 
         emit LiquidateRent(msg.sender, rent);
+    }
+
+    function settleBadDebts(uint256 _amount) external {
+        require(_amount > 0, "invalid _amount");
+
+        IERC20(bitmapToken).transferFrom(msg.sender, address (this), _amount);
+
+        liquidatedStat.actualRepaid += _amount;
+
+        emit SettleBadDebts(msg.sender, _amount);
+    }
+
+    function getNotRepaidBadDebts() external returns(uint256){
+        return liquidatedStat.totalBadDebts - liquidatedStat.actualRepaid;
     }
 
     /**
