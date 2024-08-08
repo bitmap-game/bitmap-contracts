@@ -47,7 +47,7 @@ contract BitmapRent is OwnableUpgradeable {
         uint256 returned;
         uint256 liquidated;
         bool stopped;
-        uint256 stoppedState; // StoppedState( 0.none 1.liquidate 2.abnormal liquidate, excessive rent fee )
+        StoppedState stoppedState; // StoppedState( 0.none 1.liquidate 2.abnormal liquidate, excessive rent fee )
         uint256 startTimestamp;
         uint256 stopTimestamp;
     }
@@ -201,10 +201,14 @@ contract BitmapRent is OwnableUpgradeable {
             msg.sender,
             rentDeposit,
             0,
+            0,
+            0,
             false,
+            StoppedState.None,
             block.timestamp,
             0
         );
+
         renterToRentIds[msg.sender].push(_rentId);
         rentIdToRent[_rentId] = rent;
 
@@ -645,4 +649,3 @@ contract BitmapRent is OwnableUpgradeable {
         emit PauseEvent(msg.sender, paused);
     }
 }
-
