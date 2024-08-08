@@ -43,8 +43,8 @@ contract BitmapRent is OwnableUpgradeable {
         uint256 n;
         address renter;
         uint256 deposit;
+        uint256 rentFee;
         uint256 returned;
-        uint256 actualRentFee;
         uint256 liquidated;
         bool stopped;
         uint256 stoppedState; // StoppedState( 0.none 1.liquidate 2.abnormal liquidate, excessive rent fee )
@@ -233,8 +233,8 @@ contract BitmapRent is OwnableUpgradeable {
         rent.stopTimestamp = block.timestamp;
 
         //return rent amount
-        rent.actualRentFee = _calRentFee(rent);
-        rent.returned = rent.deposit - rent.actualRentFee;
+        rent.rentFee = _calRentFee(rent);
+        rent.returned = rent.deposit - rent.rentFee;
 
         IERC20(bitmapToken).transfer(msg.sender, rent.returned);
 
@@ -248,26 +248,24 @@ contract BitmapRent is OwnableUpgradeable {
         rent.stopped = true;
         rent.stopTimestamp = block.timestamp;
 
-        uint256 rentFee = _calRentFee(rent);
+        rent.rentFee = _calRentFee(rent);
 
         //excessive rent fee
-        if (rentFee > rent.deposit) {
-            rent.actualRentFee = rentFee;
+        if (rent.rentFee > rent.deposit) {
             rent.stoppedState = StoppedState.AbnormalLiquidated;
             emit LiquidateRent(msg.sender, rent);
             return;
         }
 
-        uint256 returned = rent.deposit - rentFee;
-        require(returned <= _dailyRentFee(rent.deposit), "It is not time for liquidation");
+        uint256 liquidated = rent.deposit - rent.rentFee;
+        require(liquidated <= _dailyRentFee(rent.deposit), "It is not time for liquidation");
 
         //update stat
         _updateStopRentStat(rent.deposit);
 
         //update rent info
-        rent.actualRentFee = rentFee;
         rent.stoppedState = StoppedState.Liquidated;
-        rent.liquidated = returned;
+        rent.liquidated = liquidated;
 
         IERC20(bitmapToken).transfer(msg.sender, rent.liquidated);
 
