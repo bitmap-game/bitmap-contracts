@@ -37,14 +37,6 @@ contract BitmapRent is OwnableUpgradeable {
 
     RentStat public rentStat;
 
-    struct LiquidatedStat {
-        uint256 totalLiquidated;
-
-        uint256 totalBadDebts;
-        uint256 actualRepaid;
-    }
-    LiquidatedStat public liquidatedStat;
-
     struct Rent {
         string id;
         uint256 firstBitmap;
@@ -106,7 +98,9 @@ contract BitmapRent is OwnableUpgradeable {
 
     event LiquidateRent(
         address msgSender,
-        Rent rent
+        StoppedState stoppedState,
+        uint256 liquidated,
+        uint256 badDebts
     );
 
     event SettleBadDebts(
@@ -273,8 +267,12 @@ contract BitmapRent is OwnableUpgradeable {
         //excessive rent fee
         if (rent.rentFee > rent.deposit) {
             rent.stoppedState = StoppedState.AbnormalLiquidated;
-            liquidatedStat.totalBadDebts += (rent.rentFee - rent.deposit);
-            emit LiquidateRent(msg.sender, rent);
+            uint256 badDebts = rent.rentFee-rent.deposit;
+
+            //liquidate: repay bad debts
+            IERC20(bitmapToken).transferFrom(msg.sender, address (this), badDebts);
+
+            emit LiquidateRent(msg.sender, _rentId, StoppedState.AbnormalLiquidated, 0, badDebts);
             return;
         }
 
@@ -284,25 +282,11 @@ contract BitmapRent is OwnableUpgradeable {
         //update rent info
         rent.stoppedState = StoppedState.Liquidated;
         rent.liquidated = liquidated;
-        liquidatedStat.totalLiquidated += liquidated;
 
+        //liquidate: get benefits
         IERC20(bitmapToken).transfer(msg.sender, rent.liquidated);
 
-        emit LiquidateRent(msg.sender, rent);
-    }
-
-    function settleBadDebts(uint256 _amount) external {
-        require(_amount > 0, "invalid _amount");
-
-        IERC20(bitmapToken).transferFrom(msg.sender, address (this), _amount);
-
-        liquidatedStat.actualRepaid += _amount;
-
-        emit SettleBadDebts(msg.sender, _amount);
-    }
-
-    function getNotRepaidBadDebts() external view returns(uint256){
-        return liquidatedStat.totalBadDebts - liquidatedStat.actualRepaid;
+        emit LiquidateRent(msg.sender, _rentId, StoppedState.Liquidated, rent.liquidated, 0);
     }
 
     /**
