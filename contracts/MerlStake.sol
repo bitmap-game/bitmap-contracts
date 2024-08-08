@@ -223,6 +223,8 @@ contract MerlStake is OwnableUpgradeable {
     * finally, we transfer all reward to this account.
     */
     function claimAllReward() external whenNotPaused nonReentrant {
+        require(accountToStake[msg.sender].account != address (0), "invalid user");
+
         _settleGlobalAllRewards();
 
         _settleAccountAllRewards(msg.sender);
