@@ -98,6 +98,7 @@ contract BitmapRent is OwnableUpgradeable {
 
     event LiquidateRent(
         address msgSender,
+        string rentId,
         StoppedState stoppedState,
         uint256 liquidated,
         uint256 badDebts
