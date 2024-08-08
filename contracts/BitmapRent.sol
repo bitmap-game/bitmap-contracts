@@ -301,7 +301,7 @@ contract BitmapRent is OwnableUpgradeable {
         emit SettleBadDebts(msg.sender, _amount);
     }
 
-    function getNotRepaidBadDebts() external returns(uint256){
+    function getNotRepaidBadDebts() external view returns(uint256){
         return liquidatedStat.totalBadDebts - liquidatedStat.actualRepaid;
     }
 
