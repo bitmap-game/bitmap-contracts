@@ -47,7 +47,7 @@ contract BitmapRent is OwnableUpgradeable {
         uint256 returned;
         uint256 liquidated;
         bool stopped;
-        StoppedState stoppedState; // StoppedState( 0.none 1.liquidate 2.abnormal liquidate, excessive rent fee )
+        StoppedState stoppedState; // StoppedState( 0.none 1.liquidated 2.abnormal liquidated, excessive rent fee )
         uint256 startTimestamp;
         uint256 stopTimestamp;
     }
@@ -102,11 +102,6 @@ contract BitmapRent is OwnableUpgradeable {
         StoppedState stoppedState,
         uint256 liquidated,
         uint256 badDebts
-    );
-
-    event SettleBadDebts(
-        address msgSender,
-        uint256 amount
     );
 
     event WithdrawReward(
