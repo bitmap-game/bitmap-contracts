@@ -248,6 +248,9 @@ contract BitmapRent is OwnableUpgradeable {
         rent.stopped = true;
         rent.stopTimestamp = block.timestamp;
 
+        //update stat
+        _updateStopRentStat(rent.deposit);
+
         rent.rentFee = _calRentFee(rent);
 
         //excessive rent fee
@@ -259,9 +262,6 @@ contract BitmapRent is OwnableUpgradeable {
 
         uint256 liquidated = rent.deposit - rent.rentFee;
         require(liquidated <= _dailyRentFee(rent.deposit), "It is not time for liquidation");
-
-        //update stat
-        _updateStopRentStat(rent.deposit);
 
         //update rent info
         rent.stoppedState = StoppedState.Liquidated;
