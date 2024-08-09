@@ -23,7 +23,7 @@
   "scripts": {
     "compile": "npx hardhat compile && npx hardhat size-contracts",
     "deploy": "npx hardhat run scripts/deploy-stake.js --network btclayer2",
-    "verify": "npx hardhat run scripts/verify.js --network btclayer2",
+    "verify": "npx hardhat run scripts/verify-stake.js --network btclayer2",
     "flatten": "npx hardhat flatten ./contracts/BitmapRent.sol > FlattenedBitmapRent.sol"
   },
   "dependencies": {

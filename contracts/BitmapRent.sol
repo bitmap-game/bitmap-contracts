@@ -239,11 +239,13 @@ contract BitmapRent is OwnableUpgradeable {
         rent.stopped = true;
         rent.stopTimestamp = block.timestamp;
         rent.rentFee = _calRentFee(rent);
-        require(rent.deposit > rent.rentFee, "excessive rent fee, can't stop");
+        require(rent.deposit >= rent.rentFee, "excessive rent fee, can't stop");
 
         rent.returned = rent.deposit - rent.rentFee;
 
-        IERC20(bitmapToken).transfer(msg.sender, rent.returned);
+        if (rent.returned > 0) {
+            IERC20(bitmapToken).transfer(msg.sender, rent.returned);
+        }
 
         emit StopRent(msg.sender, rent);
     }

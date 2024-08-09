@@ -443,12 +443,14 @@ contract MerlStake is OwnableUpgradeable {
     function _settleGlobalReward(address rewardContract) internal {
         GlobalReward storage globalReward = globalRewards[rewardContract];
         uint256 totalReward = IRewardContract(rewardContract).getTotalReward();
-        if (totalReward == 0) {
+        require(totalReward >= globalReward.totalRewardsEarned, "invalid totalReward");
+
+        uint256 rangeReward = totalReward - globalReward.totalRewardsEarned;
+        if (rangeReward == 0) {
             globalReward.updateTimestamp = block.timestamp;
             return;
         }
 
-        uint256 rangeReward = totalReward - globalReward.totalRewardsEarned;
         uint256 scaledRangeRewardPerMerl = 0;
         if (totalMerl > 0) {
             scaledRangeRewardPerMerl = _scaledRangeRewardPerMerl(rangeReward, totalMerl);
