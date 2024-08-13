@@ -2,12 +2,10 @@
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract Rents is OwnableUpgradeable {
     string public constant version = "1.0.0";
-    uint256 public constant ONE_AMOUNT = 1e22;
     uint256 public constant SECONDS_PER_DAY = 86400;
     uint256 public constant FEE_RATE_SCALE_FACTOR = 1e6;
 
@@ -23,6 +21,7 @@ contract Rents is OwnableUpgradeable {
 
     address public rentToken;
     address public withdrawer;
+    uint256 public oneGamePropsAmount;
 
     uint256 public id;
 
@@ -68,6 +67,11 @@ contract Rents is OwnableUpgradeable {
         address msgSender,
         address oldWithdrawer,
         address withdrawer);
+
+    event UpdateOneGamePropsAmount(
+        address msgSender,
+        uint256 oldAmount,
+        uint256 newAmount);
 
     event UpdateRentFeeRate(
         address msgSender,
@@ -135,13 +139,16 @@ contract Rents is OwnableUpgradeable {
     function initialize(
         address _initialOwner,
         address _rentToken,
-        address _withdrawer
+        address _withdrawer,
+        uint256 _oneGamePropsAmount
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_rentToken)
     onlyValidAddress(_withdrawer) initializer {
         rentToken = _rentToken;
         withdrawer = _withdrawer;
+        require(_oneGamePropsAmount > 0, "invalid _oneGamePropsAmount");
+        oneGamePropsAmount = _oneGamePropsAmount;
 
         currentBaseRentFeeRate = 10000;
         currentDailyRentFeeRate = 100;
@@ -166,7 +173,7 @@ contract Rents is OwnableUpgradeable {
     * finally, we build a rent record and save it.
     */
     function startRent(uint256 _rentDeposit) external whenNotPaused nonReentrant {
-        require(_rentDeposit > ONE_AMOUNT, "invalid _rentAmount");
+        require(_rentDeposit > oneGamePropsAmount, "invalid _rentAmount");
 
         uint256 rentId = _id();
 
@@ -392,7 +399,7 @@ contract Rents is OwnableUpgradeable {
     * @dev Get the base rent info, contains bitmap price, and rental rate information.
     */
     function getRentBaseInfo() external view returns (uint256, uint256, uint256, uint256) {
-        return (ONE_AMOUNT, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
+        return (oneGamePropsAmount, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
     }
 
     /**
@@ -405,6 +412,14 @@ contract Rents is OwnableUpgradeable {
         withdrawer = _withdrawer;
 
         emit UpdateWithdrawer(msg.sender, oldWithdrawer, withdrawer);
+    }
+
+    function updateOneGamePropsAmount(uint256 _amount) external onlyOwner {
+        require(_amount > 0, "invalid _amount");
+        uint256 oldAmount = oneGamePropsAmount;
+        oneGamePropsAmount = _amount;
+
+        emit UpdateOneGamePropsAmount(msg.sender, oldAmount, _amount);
     }
 
     /**
