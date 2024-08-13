@@ -21,7 +21,7 @@ contract Rents is OwnableUpgradeable {
 
     address public rentToken;
     address public withdrawer;
-    uint256 public oneAmount;
+    uint256 public onePropsAmount;
 
     uint256 public id;
 
@@ -68,7 +68,7 @@ contract Rents is OwnableUpgradeable {
         address oldWithdrawer,
         address withdrawer);
 
-    event UpdateOneAmount(
+    event UpdateOnePropsAmount(
         address msgSender,
         uint256 oldAmount,
         uint256 newAmount);
@@ -140,15 +140,15 @@ contract Rents is OwnableUpgradeable {
         address _initialOwner,
         address _rentToken,
         address _withdrawer,
-        uint256 _oneAmount
+        uint256 _onePropsAmount
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_rentToken)
     onlyValidAddress(_withdrawer) initializer {
         rentToken = _rentToken;
         withdrawer = _withdrawer;
-        require(_oneAmount > 0, "invalid _oneAmount");
-        oneAmount = _oneAmount;
+        require(_onePropsAmount > 0, "invalid _onePropsAmount");
+        onePropsAmount = _onePropsAmount;
 
         currentBaseRentFeeRate = 10000;
         currentDailyRentFeeRate = 100;
@@ -173,7 +173,7 @@ contract Rents is OwnableUpgradeable {
     * finally, we build a rent record and save it.
     */
     function startRent(uint256 _rentDeposit) external whenNotPaused nonReentrant {
-        require(_rentDeposit > oneAmount, "invalid _rentAmount");
+        require(_rentDeposit > onePropsAmount, "invalid _rentAmount");
 
         uint256 rentId = _id();
 
@@ -399,7 +399,7 @@ contract Rents is OwnableUpgradeable {
     * @dev Get the base rent info, contains bitmap price, and rental rate information.
     */
     function getRentBaseInfo() external view returns (uint256, uint256, uint256, uint256) {
-        return (oneAmount, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
+        return (onePropsAmount, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
     }
 
     /**
@@ -414,12 +414,12 @@ contract Rents is OwnableUpgradeable {
         emit UpdateWithdrawer(msg.sender, oldWithdrawer, withdrawer);
     }
 
-    function updateOneAmount(uint256 _amount) external onlyOwner {
+    function updateOnePropsAmount(uint256 _amount) external onlyOwner {
         require(_amount > 0, "invalid _amount");
-        uint256 oldAmount = oneAmount;
-        oneAmount = _amount;
+        uint256 oldAmount = onePropsAmount;
+        onePropsAmount = _amount;
 
-        emit UpdateOneAmount(msg.sender, oldAmount, _amount);
+        emit UpdateOnePropsAmount(msg.sender, oldAmount, _amount);
     }
 
     /**
