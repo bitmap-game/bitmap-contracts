@@ -5,9 +5,9 @@ import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract BitmapRent is OwnableUpgradeable {
+contract Rents is OwnableUpgradeable {
     string public constant version = "1.0.0";
-    uint256 public constant MIN_RENT_FEE = 1e18;
+    uint256 public constant ONE_AMOUNT = 1e22;
     uint256 public constant SECONDS_PER_DAY = 86400;
     uint256 public constant FEE_RATE_SCALE_FACTOR = 1e6;
 
@@ -24,6 +24,8 @@ contract BitmapRent is OwnableUpgradeable {
     address public rentToken;
     address public withdrawer;
 
+    uint256 public id;
+
     struct RentStat {
         uint256 totalRentDeposit;
         uint256 totalRentFee;
@@ -35,6 +37,7 @@ contract BitmapRent is OwnableUpgradeable {
     RentStat public rentStat;
 
     struct Rent {
+        uint256 id;
         address renter;
         uint256 deposit;
         uint256 rentFee;
@@ -46,7 +49,8 @@ contract BitmapRent is OwnableUpgradeable {
         uint256 stopTimestamp;
     }
 
-    mapping(address => Rent) public userToRent; //renterToRentIds;
+    mapping(address => uint256[]) public renterToRentIds;
+    mapping(uint256 => Rent) public rentIdToRent;
 
     uint256 public currentBaseRentFeeRate; //unit: parts per million, example: 10000/1M = 1%
     uint256 public currentDailyRentFeeRate; //unit: parts per million
@@ -85,7 +89,7 @@ contract BitmapRent is OwnableUpgradeable {
 
     event LiquidateRent(
         address msgSender,
-        address account,
+        uint256 rentId,
         StoppedState stoppedState,
         uint256 liquidated,
         uint256 badDebts
@@ -124,8 +128,9 @@ contract BitmapRent is OwnableUpgradeable {
     *
     * - `_initialOwner`：the initial owner is set to the address provided by the deployer. This can
     *      later be changed with {transferOwnership}.
-    * - `_rentToken`: spend the rent token to rent.
+    * - `_bitmapToken`: spend the bitmap token to rent the bitmaps.
     * - `_withdrawer`: the withdrawer is an external stake contract that can withdraw reward from this contract.
+    * - `_signer`: the sign address when you want to rent the bitmaps.
     */
     function initialize(
         address _initialOwner,
@@ -160,23 +165,22 @@ contract BitmapRent is OwnableUpgradeable {
     * and then, we update the global rent stat, such as totalRentFee,totalRentDeposit,updateTime,etc.
     * finally, we build a rent record and save it.
     */
-    function startRent(uint256 _rentToken, uint256 _rentAmount) external whenNotPaused nonReentrant {
-        require(_rentToken == rentToken, "invalid _rentToken");
-        require(_rentAmount >= MIN_RENT_FEE, "invalid _rentAmount");
-        require(userToRent[msg.sender].startTimestamp == 0 || userToRent[msg.sender].stopped, "msg.sender already rented");
+    function startRent(uint256 _rentDeposit) external whenNotPaused nonReentrant {
+        require(_rentDeposit > ONE_AMOUNT, "invalid _rentAmount");
+
+        uint256 rentId = _id();
 
         //receive bitmap token
-        IERC20(rentToken).transferFrom(msg.sender, address(this), _rentAmount);
+        IERC20(rentToken).transferFrom(msg.sender, address(this), _rentDeposit);
 
         //update stat
-        _updateStartRentStat(_rentAmount);
-
-        //todo 此处是否可以多次质押，如果可以更新一下
+        _updateStartRentStat(_rentDeposit);
 
         //build and save rent
         Rent memory rent = Rent(
+            rentId,
             msg.sender,
-            _rentAmount,
+            _rentDeposit,
             0,
             0,
             0,
@@ -186,7 +190,8 @@ contract BitmapRent is OwnableUpgradeable {
             0
         );
 
-        userToRent[msg.sender] = rent;
+        renterToRentIds[msg.sender].push(rentId);
+        rentIdToRent[rentId] = rent;
 
         emit StartRent(msg.sender, rent);
     }
@@ -199,11 +204,11 @@ contract BitmapRent is OwnableUpgradeable {
     * Firstly, we update the global rent stat, such as totalRentFee,totalRentDeposit,updateTime.
     * Then, transfers the remain bitmap token from this contract to the renter.
     */
-    function stopRent() external whenNotPaused nonReentrant {
-        require(userToRent[msg.sender].renter == msg.sender, "you are not renter");
-        require(!userToRent[msg.sender].stopped, "rent already terminated");
+    function stopRent(uint256 _rentId) external whenNotPaused nonReentrant {
+        require(!rentIdToRent[_rentId].stopped, "rent already terminated");
+        require(rentIdToRent[_rentId].renter == msg.sender, "you are not renter");
 
-        Rent storage rent = userToRent[msg.sender];
+        Rent storage rent = rentIdToRent[_rentId];
 
         //update stat
         _updateStopRentStat(rent.deposit);
@@ -223,10 +228,10 @@ contract BitmapRent is OwnableUpgradeable {
         emit StopRent(msg.sender, rent);
     }
 
-    function liquidateRent(address user) external whenNotPaused nonReentrant {
-        require(!userToRent[user].stopped, "rent already terminated");
+    function liquidateRent(uint256 _rentId) external whenNotPaused nonReentrant {
+        require(!rentIdToRent[_rentId].stopped, "rent already terminated");
 
-        Rent storage rent = userToRent[user];
+        Rent storage rent = rentIdToRent[_rentId];
 
         //update stat
         _updateStopRentStat(rent.deposit);
@@ -243,7 +248,7 @@ contract BitmapRent is OwnableUpgradeable {
             //liquidate: repay bad debts
             IERC20(rentToken).transferFrom(msg.sender, address (this), badDebts);
 
-            emit LiquidateRent(msg.sender, user, StoppedState.AbnormalLiquidated, 0, badDebts);
+            emit LiquidateRent(msg.sender, _rentId, StoppedState.AbnormalLiquidated, 0, badDebts);
             return;
         }
 
@@ -259,7 +264,7 @@ contract BitmapRent is OwnableUpgradeable {
             IERC20(rentToken).transfer(msg.sender, rent.liquidated);
         }
 
-        emit LiquidateRent(msg.sender, user, StoppedState.Liquidated, rent.liquidated, 0);
+        emit LiquidateRent(msg.sender, _rentId, StoppedState.Liquidated, rent.liquidated, 0);
     }
 
     /**
@@ -270,8 +275,8 @@ contract BitmapRent is OwnableUpgradeable {
     * Firstly, we calculate the rent fee that have been generated,
     * And then, subtract the rent fee from the total amount.
     */
-    function getRentReturned(address user) public view returns(uint256) {
-        Rent memory rent = userToRent[user];
+    function getRentReturned(uint256 _rentId) public view returns(uint256) {
+        Rent memory rent = rentIdToRent[_rentId];
         if (rent.renter == address (0)) {
             return 0;
         }
@@ -295,12 +300,12 @@ contract BitmapRent is OwnableUpgradeable {
     * Firstly, we calculate the rent fee that have been generated,
     * And then, subtract the rent fee from the total amount.
     */
-    function getRentsReturned(string[] calldata _users) external view returns(uint256[] memory) {
-        require(_users.length > 0, "invalid _users");
+    function getRentsReturned(uint256[] calldata _rentIds) external view returns(uint256[] memory) {
+        require(_rentIds.length > 0, "invalid _rentIds");
 
-        uint256[] memory returnedList = new uint256[](_users.length);
-        for (uint16 i = 0; i < _users.length; i++) {
-            returnedList[i] = getRentReturned(_users[i]);
+        uint256[] memory returnedList = new uint256[](_rentIds.length);
+        for (uint16 i = 0; i < _rentIds.length; i++) {
+            returnedList[i] = getRentReturned(_rentIds[i]);
         }
 
         return returnedList;
@@ -349,21 +354,36 @@ contract BitmapRent is OwnableUpgradeable {
     * - `_user`: the specified user.
     * - `_all`: if true, list all rents; if false, list valid rents.
     */
-    function listUsersRents(address[] memory _users, bool _all) external view returns (Rent[] memory){
+    function listUserRents(address _user, bool _all) external view returns (Rent[] memory){
         if (_all) {
-            return _getUsersAllRents(_user);
+            return _getUserAllRents(_user);
         }
 
-        return _getUsersValidRents(_user);
+        return _getUserValidRents(_user);
+    }
+
+    /**
+    * @dev List the rents by rent ids.
+    */
+    function listRentsByRentIds(uint256[] calldata _rentIds) external view returns (Rent[] memory){
+        require(_rentIds.length > 0, "invalid _rentIds");
+
+        Rent[] memory rents = new Rent[](_rentIds.length);
+        for (uint16 i = 0; i < _rentIds.length; i++) {
+            uint256 rentId = _rentIds[i];
+            rents[i] = rentIdToRent[rentId];
+        }
+
+        return rents;
     }
 
     /**
     * @dev Batch check rents exists, by rent ids.
     */
-    function batchCheckUsersRentsExists(string[] calldata _users) external view returns (bool[] memory) {
-        bool[] memory results = new bool[](_users.length);
-        for (uint16 i = 0; i < _users.length; i++) {
-            results[i] = userToRent[_users[i]].renter != address (0) && !userToRent[_users[i]].stopped; //new
+    function batchCheckRentExists(uint256[] calldata _rentIds) external view returns (bool[] memory) {
+        bool[] memory results = new bool[](_rentIds.length);
+        for (uint16 i = 0; i < _rentIds.length; i++) {
+            results[i] = rentIdToRent[_rentIds[i]].startTimestamp != 0 && !rentIdToRent[_rentIds[i]].stopped; //new
         }
         return results;
     }
@@ -372,7 +392,7 @@ contract BitmapRent is OwnableUpgradeable {
     * @dev Get the base rent info, contains bitmap price, and rental rate information.
     */
     function getRentBaseInfo() external view returns (uint256, uint256, uint256, uint256) {
-        return (MIN_RENT_FEE, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
+        return (ONE_AMOUNT, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
     }
 
     /**
@@ -440,26 +460,30 @@ contract BitmapRent is OwnableUpgradeable {
         return rentFeeRateChangeHistory;
     }
 
-    function _getUsersValidRents(address[] memory users) internal view returns (Rent[] memory){
-        if (users.length == 0) {
+    function _id() internal returns(uint256){
+        id += 1;
+        return id;
+    }
+
+    function _getUserValidRents(address user) internal view returns (Rent[] memory){
+        if (renterToRentIds[user].length == 0) {
             return new Rent[](0);
         }
 
         uint16 count = 0;
-        for (uint16 i = 0; i < users.length; i++) {
-            address user = users[i];
-            string memory rentId = userToRent[user];
-            if (!userToRent[user].stopped) {
+        for (uint16 i = 0; i < renterToRentIds[user].length; i++) {
+            uint256 rentId = renterToRentIds[user][i];
+            if (!rentIdToRent[rentId].stopped) {
                 count += 1;
             }
         }
 
         Rent[] memory rents = new Rent[](count);
         uint16 next = 0;
-        for (uint16 i = 0; i < users.length; i++) {
-            address user = users[i];
-            if (!userToRent[user].stopped) {
-                rents[next] = userToRent[user];
+        for (uint16 i = 0; i < renterToRentIds[user].length; i++) {
+            uint256 rentId = renterToRentIds[user][i];
+            if (!rentIdToRent[rentId].stopped) {
+                rents[next] = rentIdToRent[rentId];
                 next += 1;
             }
         }
@@ -467,14 +491,14 @@ contract BitmapRent is OwnableUpgradeable {
         return rents;
     }
 
-    function _getUsersAllRents(address[] memory users) internal view returns (Rent[] memory){
-        if (users.length == 0) {
+    function _getUserAllRents(address user) internal view returns (Rent[] memory){
+        if (renterToRentIds[user].length == 0) {
             return new Rent[](0);
         }
 
-        Rent[] memory rents = new Rent[](users.length);
-        for (uint16 i = 0; i < users.length; i++) {
-            rents[i] = userToRent[users[i]];
+        Rent[] memory rents = new Rent[](renterToRentIds[user].length);
+        for (uint16 i = 0; i < renterToRentIds[user].length; i++) {
+            rents[i] = rentIdToRent[renterToRentIds[user][i]];
         }
 
         return rents;
