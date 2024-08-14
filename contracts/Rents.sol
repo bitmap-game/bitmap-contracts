@@ -132,9 +132,9 @@ contract Rents is OwnableUpgradeable {
     *
     * - `_initialOwner`：the initial owner is set to the address provided by the deployer. This can
     *      later be changed with {transferOwnership}.
-    * - `_bitmapToken`: spend the bitmap token to rent the bitmaps.
+    * - `_rentToken`: spend the rent token to rent.
     * - `_withdrawer`: the withdrawer is an external stake contract that can withdraw reward from this contract.
-    * - `_signer`: the sign address when you want to rent the bitmaps.
+    * - `_onePropsAmount`: the token amount of one props.
     */
     function initialize(
         address _initialOwner,
@@ -159,35 +159,27 @@ contract Rents is OwnableUpgradeable {
     }
 
     /**
-    * @dev Start rent: start a rent that has been verified and signed by the centralized service.
+    * @dev Start rent: start a rent.
     *
-    * - `_rentId`: the rent id when you rent n * n squares bitmaps.
-    * - `_firstBitmap`: the first bitmap of all that you rented, they are n * n * n squares bitmaps.
-    * - `_n`: The side length of an n * n squares bitmaps.
-    * - `_expiration`: the validity period of the signature, after the expiration time, you need to re-sign.
-    * - `_signature`: the signature of this rent, signature result of the above four parameters.
-    *
-    * Firstly, we will verify the rent signature, signed by the centralized service. If signature is valid,
-    * we transfer the specified amount of bitmapToken from sender to this contract.
+    * Firstly, we transfer the specified amount of rentToken from sender to this contract.
     * and then, we update the global rent stat, such as totalRentFee,totalRentDeposit,updateTime,etc.
     * finally, we build a rent record and save it.
     */
-    function startRent(uint256 _rentDeposit) external whenNotPaused nonReentrant {
-        require(_rentDeposit > onePropsAmount, "invalid _rentAmount");
-
+    function startRent() external whenNotPaused nonReentrant {
         uint256 rentId = _id();
+        uint256 rentDeposit = onePropsAmount;
 
-        //receive bitmap token
-        IERC20(rentToken).transferFrom(msg.sender, address(this), _rentDeposit);
+        //receive rent token
+        IERC20(rentToken).transferFrom(msg.sender, address(this), rentDeposit);
 
         //update stat
-        _updateStartRentStat(_rentDeposit);
+        _updateStartRentStat(rentDeposit);
 
         //build and save rent
         Rent memory rent = Rent(
             rentId,
             msg.sender,
-            _rentDeposit,
+            rentDeposit,
             0,
             0,
             0,
@@ -206,10 +198,10 @@ contract Rents is OwnableUpgradeable {
     /**
     * @dev Stop rent: stop the specified rent, and settlement for the total rent fee.
     *
-    * - `_rentId`: the rent id when you rented n * n squares bitmaps.
+    * - `_rentId`: the rent id when you rented.
     *
     * Firstly, we update the global rent stat, such as totalRentFee,totalRentDeposit,updateTime.
-    * Then, transfers the remain bitmap token from this contract to the renter.
+    * Then, transfers the remain rent token from this contract to the renter.
     */
     function stopRent(uint256 _rentId) external whenNotPaused nonReentrant {
         require(!rentIdToRent[_rentId].stopped, "rent already terminated");
@@ -275,9 +267,9 @@ contract Rents is OwnableUpgradeable {
     }
 
     /**
-    * @dev Get rent's returned bitmap token.
+    * @dev Get rent's returned rent token.
     *
-    * - `_rentId`: the rent id when you rented n * n squares bitmaps.
+    * - `_rentId`: the rent id when you rented.
     *
     * Firstly, we calculate the rent fee that have been generated,
     * And then, subtract the rent fee from the total amount.
@@ -300,9 +292,9 @@ contract Rents is OwnableUpgradeable {
     }
 
     /**
-    * @dev Get rents' returnedList bitmap token.
+    * @dev Get rents' returnedList rent token.
     *
-    * - `_rentIds`: the rent id list when these are rented n * n squares bitmaps.
+    * - `_rentIds`: the rent id list when these are rented.
     *
     * Firstly, we calculate the rent fee that have been generated,
     * And then, subtract the rent fee from the total amount.
@@ -322,7 +314,7 @@ contract Rents is OwnableUpgradeable {
     * @dev Withdraw reward by the external stake contract, Pick up address, must be specified stake contract address.
     * (external interface function)
     *
-    * - `_amount`: withdraw amount bitmap token.
+    * - `_amount`: withdraw amount rent token.
     */
     function withdrawReward(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount > 0, "invalid _amount");
@@ -396,7 +388,7 @@ contract Rents is OwnableUpgradeable {
     }
 
     /**
-    * @dev Get the base rent info, contains bitmap price, and rental rate information.
+    * @dev Get the base rent info, contains one props rent price, and rental rate information.
     */
     function getRentBaseInfo() external view returns (uint256, uint256, uint256, uint256) {
         return (onePropsAmount, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
