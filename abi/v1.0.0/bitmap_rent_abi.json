@@ -1,6 +1,33 @@
 [
   {
     "inputs": [],
+    "name": "ECDSAInvalidSignature",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "length",
+        "type": "uint256"
+      }
+    ],
+    "name": "ECDSAInvalidSignatureLength",
+    "type": "error"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "s",
+        "type": "bytes32"
+      }
+    ],
+    "name": "ECDSAInvalidSignatureS",
+    "type": "error"
+  },
+  {
+    "inputs": [],
     "name": "InvalidInitialization",
     "type": "error"
   },
@@ -42,6 +69,43 @@
       }
     ],
     "name": "Initialized",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "msgSender",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "string",
+        "name": "rentId",
+        "type": "string"
+      },
+      {
+        "indexed": false,
+        "internalType": "enum BitmapRent.StoppedState",
+        "name": "stoppedState",
+        "type": "uint8"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "liquidated",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "badDebts",
+        "type": "uint256"
+      }
+    ],
+    "name": "LiquidateRent",
     "type": "event"
   },
   {
@@ -145,13 +209,28 @@
           },
           {
             "internalType": "uint256",
+            "name": "rentFee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "returned",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "liquidated",
             "type": "uint256"
           },
           {
             "internalType": "bool",
             "name": "stopped",
             "type": "bool"
+          },
+          {
+            "internalType": "enum BitmapRent.StoppedState",
+            "name": "stoppedState",
+            "type": "uint8"
           },
           {
             "internalType": "uint256",
@@ -211,13 +290,28 @@
           },
           {
             "internalType": "uint256",
+            "name": "rentFee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "returned",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "liquidated",
             "type": "uint256"
           },
           {
             "internalType": "bool",
             "name": "stopped",
             "type": "bool"
+          },
+          {
+            "internalType": "enum BitmapRent.StoppedState",
+            "name": "stoppedState",
+            "type": "uint8"
           },
           {
             "internalType": "uint256",
@@ -613,6 +707,19 @@
   {
     "inputs": [
       {
+        "internalType": "string",
+        "name": "_rentId",
+        "type": "string"
+      }
+    ],
+    "name": "liquidateRent",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
         "internalType": "string[]",
         "name": "_rentIds",
         "type": "string[]"
@@ -649,13 +756,28 @@
           },
           {
             "internalType": "uint256",
+            "name": "rentFee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "returned",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "liquidated",
             "type": "uint256"
           },
           {
             "internalType": "bool",
             "name": "stopped",
             "type": "bool"
+          },
+          {
+            "internalType": "enum BitmapRent.StoppedState",
+            "name": "stoppedState",
+            "type": "uint8"
           },
           {
             "internalType": "uint256",
@@ -720,13 +842,28 @@
           },
           {
             "internalType": "uint256",
+            "name": "rentFee",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
             "name": "returned",
+            "type": "uint256"
+          },
+          {
+            "internalType": "uint256",
+            "name": "liquidated",
             "type": "uint256"
           },
           {
             "internalType": "bool",
             "name": "stopped",
             "type": "bool"
+          },
+          {
+            "internalType": "enum BitmapRent.StoppedState",
+            "name": "stoppedState",
+            "type": "uint8"
           },
           {
             "internalType": "uint256",
@@ -884,13 +1021,28 @@
       },
       {
         "internalType": "uint256",
+        "name": "rentFee",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
         "name": "returned",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint256",
+        "name": "liquidated",
         "type": "uint256"
       },
       {
         "internalType": "bool",
         "name": "stopped",
         "type": "bool"
+      },
+      {
+        "internalType": "enum BitmapRent.StoppedState",
+        "name": "stoppedState",
+        "type": "uint8"
       },
       {
         "internalType": "uint256",
