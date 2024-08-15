@@ -282,8 +282,9 @@ contract BitmapRent is OwnableUpgradeable {
         rent.liquidated = liquidated;
 
         //liquidate: get benefits
-        IERC20(bitmapToken).transfer(msg.sender, rent.liquidated);
-
+        if (rent.liquidated > 0) {
+            IERC20(bitmapToken).transfer(msg.sender, rent.liquidated);
+        }
         emit LiquidateRent(msg.sender, _rentId, StoppedState.Liquidated, rent.liquidated, 0);
     }
 
@@ -306,6 +307,9 @@ contract BitmapRent is OwnableUpgradeable {
         }
 
         uint256 rentFee = _calRentFee(rent);
+        if (rentFee > rent.deposit) {
+            return 0;
+        }
         return rent.deposit - rentFee;
     }
 
