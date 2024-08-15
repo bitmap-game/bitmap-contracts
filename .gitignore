@@ -6,6 +6,7 @@ typechain
 typechain-types
 deploy_output.json
 deploy_output_stake.json
+deploy_output_helper.json
 test/stakingfactory.ts
 
 # Hardhat files
