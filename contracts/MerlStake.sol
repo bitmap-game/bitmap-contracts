@@ -102,6 +102,10 @@ contract MerlStake is OwnableUpgradeable {
         _nonReentrantStatus = 0;
     }
 
+    constructor() {
+        _disableInitializers();
+    }
+
     /**
     * @dev Initialization function
     *
