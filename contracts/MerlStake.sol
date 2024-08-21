@@ -244,7 +244,7 @@ contract MerlStake is OwnableUpgradeable {
     *
     * return this account stake info with (merl, settledReward, rewardsClaimed, blockTime, perMerl).
     */
-    function getStakeInfo(address _account, address _rewardContract) external view returns (uint256,uint256,uint256,uint256,uint256) {
+    function getStakeInfo(address _account, address _rewardContract) public view returns (uint256,uint256,uint256,uint256,uint256) {
         Stake storage stake = accountToStake[_account];
         uint256 lastUpdateTimestamp = globalRewards[_rewardContract].updateTimestamp;
         uint256 lastScaledTotalRewardPerMel = globalRewards[_rewardContract].scaledTotalRewardsPerMerl;
@@ -265,6 +265,10 @@ contract MerlStake is OwnableUpgradeable {
     * finally, return this account real time stake info with (merl, settledReward, rewardsClaimed, blockTime, perMerl)
     */
     function getStakeInfoRealTime(address _account, address _rewardContract) external view returns (uint256,uint256,uint256,uint256,uint256) {
+        if (!globalRewards[_rewardContract].enabled) {
+            return getStakeInfo(_account, _rewardContract);
+        }
+
         Stake storage stake = accountToStake[_account];
         uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl(_rewardContract);
         uint256 scaledRangePerMerl = currentScaledTotalRewardPerMel - stake.rewards[_rewardContract].scaledSettledRewardPerMerl;
@@ -292,7 +296,7 @@ contract MerlStake is OwnableUpgradeable {
     *
     * - `_rewardContract`: the specified reward contract.
     */
-    function getTotalRewardInfo(address _rewardContract) external view returns(uint256,uint256,uint256,uint256,uint256) {
+    function getTotalRewardInfo(address _rewardContract) public view returns(uint256,uint256,uint256,uint256,uint256) {
         uint256 lastTotalReward = globalRewards[_rewardContract].totalRewardsEarned;
         uint256 lastScaledTotalRewardPerMel = globalRewards[_rewardContract].scaledTotalRewardsPerMerl;
         uint256 lastTotalClaimedReward = globalRewards[_rewardContract].totalRewardsClaimed;
@@ -310,6 +314,10 @@ contract MerlStake is OwnableUpgradeable {
     * finally, we return the global real time reward info.
     */
     function getTotalRewardInfoRealTime(address _rewardContract) external view returns(uint256,uint256,uint256,uint256,uint256) {
+        if (!globalRewards[_rewardContract].enabled) {
+            return getTotalRewardInfo(_rewardContract);
+        }
+
         uint256 currentTotalReward = IRewardContract(_rewardContract).getTotalReward();
         uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl(_rewardContract);
         uint256 lastTotalClaimedReward = globalRewards[_rewardContract].totalRewardsClaimed;
@@ -350,6 +358,7 @@ contract MerlStake is OwnableUpgradeable {
         require(_rewardContract != address(0), "invalid _rewardContract");
         require(globalRewards[_rewardContract].enabled == true, "_rewardContract is disable");
 
+        _settleGlobalReward(_rewardContract);
         globalRewards[_rewardContract].enabled = false;
 
         emit DisableRewardContract(msg.sender, _rewardContract);
@@ -363,6 +372,7 @@ contract MerlStake is OwnableUpgradeable {
         require(_rewardContract != address(0), "invalid _rewardContract");
         require(globalRewards[_rewardContract].enabled == false, "_rewardContract is enable");
 
+        _settleGlobalReward(_rewardContract);
         globalRewards[_rewardContract].enabled = true;
 
         emit EnableRewardContract(msg.sender, _rewardContract);
