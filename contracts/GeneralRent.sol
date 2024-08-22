@@ -171,7 +171,6 @@ contract GeneralRent is OwnableUpgradeable {
     * @dev Start rent: start a rent that has been verified and signed by the centralized service.
     *
     * - `_rentId`: the rent id when you rent n * n squares bitmaps.
-    * - `_nonce`: The nonce of msg.sender.
     * - `_expiration`: the validity period of the signature, after the expiration time, you need to re-sign.
     * - `_signature`: the signature of this rent, signature result of the above four parameters.
     *
@@ -180,12 +179,12 @@ contract GeneralRent is OwnableUpgradeable {
     * and then, we update the global rent stat, such as totalRentFee,totalRentDeposit,updateTime,etc.
     * finally, we build a rent record and save it.
     */
-    function startRent(string memory _rentId, uint256 _nonce, uint256 _expiration, bytes calldata _signature) external whenNotPaused nonReentrant {
+    function startRent(string memory _rentId, uint256 _expiration, bytes calldata _signature) external whenNotPaused nonReentrant {
         require(_expiration >= block.timestamp, "_signature expired");
         require(rentIdToRent[_rentId].deposit == 0, "_rentId already rented");
 
         //verify _signature
-        require(verifyRentSignature(_rentId, _nonce, _expiration, _signature), "verify signature failed");
+        require(verifyRentSignature(_rentId, _expiration, _signature), "verify signature failed");
 
         //calc rent deposit
         uint256 rentDeposit = onePropsAmount;
@@ -334,8 +333,8 @@ contract GeneralRent is OwnableUpgradeable {
     * @dev Signature verification function.
     * Calculate the hash with four parameters(_rentId, _nonce, _n_expiration), and verify it.
     */
-    function verifyRentSignature(string memory _rentId, uint256 _nonce, uint256 _expiration, bytes calldata _signature) public view returns (bool){
-        bytes memory data = abi.encode(msg.sender, _rentId, _nonce, _expiration);
+    function verifyRentSignature(string memory _rentId, uint256 _expiration, bytes calldata _signature) public view returns (bool){
+        bytes memory data = abi.encode(msg.sender, _rentId, _expiration);
         bytes32 hash = keccak256(data);
         address receivedAddress = ECDSA.recover(hash, _signature);
         return receivedAddress != address(0) && receivedAddress == signer;
