@@ -143,15 +143,15 @@ contract GeneralRent is OwnableUpgradeable {
     */
     function initialize(
         address _initialOwner,
-        address _rentToken,
         address _withdrawer,
         address _signer,
+        address _rentToken,
         uint256 _onePropsAmount
     ) external
     onlyValidAddress(_initialOwner)
-    onlyValidAddress(_rentToken)
     onlyValidAddress(_withdrawer)
-    onlyValidAddress(_signer) initializer {
+    onlyValidAddress(_signer)
+    onlyValidAddress(_rentToken) initializer {
         rentToken = _rentToken;
         withdrawer = _withdrawer;
         signer = _signer;
