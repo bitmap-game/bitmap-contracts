@@ -139,6 +139,7 @@ contract GeneralRent is OwnableUpgradeable {
     * - `_rentToken`: spend the rent token to rent.
     * - `_withdrawer`: the withdrawer is an external stake contract that can withdraw reward from this contract.
     * - `_signer`: the sign address when you want to rent.
+    * - `_onePropsAmount`: amount of one props.
     */
     function initialize(
         address _initialOwner,
