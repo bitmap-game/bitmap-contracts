@@ -37,6 +37,7 @@ contract GeneralRent is OwnableUpgradeable {
 
     struct Rent {
         string id;
+        uint256 n;
         address renter;
         uint256 deposit;
         uint256 rentFee;
@@ -179,15 +180,17 @@ contract GeneralRent is OwnableUpgradeable {
     * and then, we update the global rent stat, such as totalRentFee,totalRentDeposit,updateTime,etc.
     * finally, we build a rent record and save it.
     */
-    function startRent(string memory _rentId, uint256 _expiration, bytes calldata _signature) external whenNotPaused nonReentrant {
+    function startRent(string memory _rentId, uint256 _n, uint256 _expiration, bytes calldata _signature) external whenNotPaused nonReentrant {
+        require(_n > 0, "invalid _n");
+
         require(_expiration >= block.timestamp, "_signature expired");
         require(rentIdToRent[_rentId].deposit == 0, "_rentId already rented");
 
         //verify _signature
-        require(verifyRentSignature(_rentId, _expiration, _signature), "verify signature failed");
+        require(verifyRentSignature(_rentId, _n, _expiration, _signature), "verify signature failed");
 
         //calc rent deposit
-        uint256 rentDeposit = onePropsAmount;
+        uint256 rentDeposit = onePropsAmount * _n;
 
         //receive rent token
         IERC20(rentToken).transferFrom(msg.sender, address(this), rentDeposit);
@@ -198,6 +201,7 @@ contract GeneralRent is OwnableUpgradeable {
         //build and save rent
         Rent memory rent = Rent(
             _rentId,
+            _n,
             msg.sender,
             rentDeposit,
             0,
@@ -333,8 +337,8 @@ contract GeneralRent is OwnableUpgradeable {
     * @dev Signature verification function.
     * Calculate the hash with four parameters(_rentId, _nonce, _n_expiration), and verify it.
     */
-    function verifyRentSignature(string memory _rentId, uint256 _expiration, bytes calldata _signature) public view returns (bool){
-        bytes memory data = abi.encode(msg.sender, _rentId, _expiration);
+    function verifyRentSignature(string memory _rentId, uint256 _n, uint256 _expiration, bytes calldata _signature) public view returns (bool){
+        bytes memory data = abi.encode(msg.sender, _rentId, address (this), _n, _expiration);
         bytes32 hash = keccak256(data);
         address receivedAddress = ECDSA.recover(hash, _signature);
         return receivedAddress != address(0) && receivedAddress == signer;
