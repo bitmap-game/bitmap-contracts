@@ -23,7 +23,7 @@ contract GeneralRent is OwnableUpgradeable {
     address public rentToken;
     address public withdrawer;
     address public signer;
-    uint256 public onePropsAmount;
+    uint256 public requiredDepositPerProp;
 
     struct RentStat {
         uint256 totalRentDeposit;
@@ -147,7 +147,7 @@ contract GeneralRent is OwnableUpgradeable {
         address _withdrawer,
         address _signer,
         address _rentToken,
-        uint256 _onePropsAmount
+        uint256 _requiredDepositPerProp
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_withdrawer)
@@ -157,8 +157,8 @@ contract GeneralRent is OwnableUpgradeable {
         withdrawer = _withdrawer;
         signer = _signer;
 
-        require(_onePropsAmount > 0, "invalid _onePropsAmount");
-        onePropsAmount = _onePropsAmount;
+        require(_requiredDepositPerProp > 0, "invalid _onePropsAmount");
+        requiredDepositPerProp = _requiredDepositPerProp;
 
         currentBaseRentFeeRate = 10000;
         currentDailyRentFeeRate = 100;
@@ -190,7 +190,7 @@ contract GeneralRent is OwnableUpgradeable {
         require(verifyRentSignature(_rentId, _n, _expiration, _signature), "verify signature failed");
 
         //calc rent deposit
-        uint256 rentDeposit = onePropsAmount * _n;
+        uint256 rentDeposit = requiredDepositPerProp * _n;
 
         //receive rent token
         IERC20(rentToken).transferFrom(msg.sender, address(this), rentDeposit);
@@ -425,7 +425,7 @@ contract GeneralRent is OwnableUpgradeable {
     * @dev Get the base rent info, contains one props rent price, and rental rate information.
     */
     function getRentBaseInfo() external view returns (uint256, uint256, uint256, uint256) {
-        return (onePropsAmount, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
+        return (requiredDepositPerProp, currentBaseRentFeeRate, currentDailyRentFeeRate, FEE_RATE_SCALE_FACTOR);
     }
 
     /**
@@ -440,10 +440,10 @@ contract GeneralRent is OwnableUpgradeable {
         emit UpdateWithdrawer(msg.sender, oldWithdrawer, withdrawer);
     }
 
-    function updateOnePropsAmount(uint256 _amount) external onlyOwner {
+    function updateRequiredDepositPerProp(uint256 _amount) external onlyOwner {
         require(_amount > 0, "invalid _amount");
-        uint256 oldAmount = onePropsAmount;
-        onePropsAmount = _amount;
+        uint256 oldAmount = requiredDepositPerProp;
+        requiredDepositPerProp = _amount;
 
         emit UpdateOnePropsAmount(msg.sender, oldAmount, _amount);
     }
