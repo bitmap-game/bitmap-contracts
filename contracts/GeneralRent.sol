@@ -4,8 +4,9 @@ pragma solidity ^0.8.20;
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./interfaces/IRewardContract.sol";
 
-contract GeneralRent is OwnableUpgradeable {
+contract GeneralRent is OwnableUpgradeable, IRewardContract {
     string public constant version = "1.0.0";
     uint256 public constant SECONDS_PER_DAY = 86400;
     uint256 public constant FEE_RATE_SCALE_FACTOR = 1e6;
