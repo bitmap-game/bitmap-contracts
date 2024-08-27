@@ -70,7 +70,7 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
         address oldWithdrawer,
         address withdrawer);
 
-    event UpdateOnePropsAmount(
+    event UpdateRequiredDepositPerProp(
         address msgSender,
         uint256 oldAmount,
         uint256 newAmount);
@@ -141,7 +141,7 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
     * - `_rentToken`: spend the rent token to rent.
     * - `_withdrawer`: the withdrawer is an external stake contract that can withdraw reward from this contract.
     * - `_signer`: the sign address when you want to rent.
-    * - `_onePropsAmount`: amount of one props.
+    * - `_requiredDepositPerProp`: the required deposit amount of one prop.
     */
     function initialize(
         address _initialOwner,
@@ -158,7 +158,7 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
         withdrawer = _withdrawer;
         signer = _signer;
 
-        require(_requiredDepositPerProp > 0, "invalid _onePropsAmount");
+        require(_requiredDepositPerProp > 0, "invalid _requiredDepositPerProp");
         requiredDepositPerProp = _requiredDepositPerProp;
 
         currentBaseRentFeeRate = 10000;
@@ -172,7 +172,8 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
     /**
     * @dev Start rent: start a rent that has been verified and signed by the centralized service.
     *
-    * - `_rentId`: the rent id when you rent n * n squares bitmaps.
+    * - `_rentId`: the rent id when you rent n props.
+    * - `_n`: the number of props.
     * - `_expiration`: the validity period of the signature, after the expiration time, you need to re-sign.
     * - `_signature`: the signature of this rent, signature result of the above four parameters.
     *
@@ -446,7 +447,7 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
         uint256 oldAmount = requiredDepositPerProp;
         requiredDepositPerProp = _amount;
 
-        emit UpdateOnePropsAmount(msg.sender, oldAmount, _amount);
+        emit UpdateRequiredDepositPerProp(msg.sender, oldAmount, _amount);
     }
 
     /**
