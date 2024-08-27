@@ -8,6 +8,7 @@ deploy_output.json
 deploy_output_stake.json
 deploy_output_helper.json
 test/stakingfactory.ts
+deploy_output_general_rent.json
 
 # Hardhat files
 cache
