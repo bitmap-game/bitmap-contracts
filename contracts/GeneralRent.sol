@@ -129,9 +129,9 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
         _nonReentrantStatus = 0;
     }
 
-    constructor() {
-        _disableInitializers();
-    }
+//    constructor() {
+//        _disableInitializers();
+//    }
 
     /**
     * @dev Initialization function
@@ -185,7 +185,7 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
     function startRent(string memory _rentId, uint256 _n, uint256 _expiration, bytes calldata _signature) external whenNotPaused nonReentrant {
         require(_n > 0, "invalid _n");
 
-        require(_expiration >= block.timestamp, "_signature expired");
+//        require(_expiration >= block.timestamp, "_signature expired");
         require(rentIdToRent[_rentId].deposit == 0, "_rentId already rented");
 
         //verify _signature
