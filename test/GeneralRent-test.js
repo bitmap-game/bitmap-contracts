@@ -3,6 +3,7 @@ const { ethers } = require("hardhat");
 const {sleep} = require("@nomicfoundation/hardhat-verify/internal/utilities");
 const {bigint} = require("hardhat/internal/core/params/argumentTypes");
 const {address} = require("hardhat/internal/core/config/config-validation");
+const { renterRequest } = require("./common");
 
 describe("Test GeneralRent Contract", function () {
     async function deployFixture() {
@@ -54,23 +55,37 @@ describe("Test GeneralRent Contract", function () {
         });
     });
 
-    // describe('startRent', function () {
-    //     it('should startRent successful', async function () {
-    //         const {owner,approveAmount, GeneralRent, RentToken} = await deployFixture();
-    //         const bitmapExchangeRate = BigInt("10000000000000000000000"); //1e22 1w
-    //         const n = 2;
-    //
-    //         await GeneralRent.connect(owner).startRent('66cef4ca7180632953fff272', 1, 1724839414, '0x8fcb67b7129afbed6b359a069f424d7d2f6914de99dc5347faf98321c71c38f43c038c8bdc5bb0d156c0e0b1c2210474d6953c8d564d664702bf8b36512bad761c');
-    //
-    //         const rent = await GeneralRent.connect(owner).rentIdToRent('66af794c4f6194c815a5a6ab');
-    //         const rentDeposit = BigInt(rent[4]);
-    //         const stopped = rent[6];
-    //         console.log('rent = ', rent, rentDeposit, stopped)
-    //
-    //         expect(rentDeposit).to.equal(BigInt(n)*BigInt(n)*BigInt(2)*bitmapExchangeRate)
-    //         expect(stopped).to.equal(false);
-    //     });
-    // });
+    describe('startRent', function () {
+        it('should startRent successful', async function () {
+            const {owner,approveAmount, GeneralRent, RentToken} = await deployFixture();
+            const bitmapExchangeRate = BigInt("10000000000000000000000"); //1e22 1w
+            const generalRentAddress = await GeneralRent.getAddress();
+            const n = 1;
+
+            console.log('req = ', owner.address, generalRentAddress, n);
+
+            const res = await renterRequest(owner.address, '0x09C824554840Aed574A3eBe9394fD6e9B5fa6eA7', n);
+            const data = res.data.data
+            console.log('res.data = ', data);
+            if (data !== 'undefined') {
+                console.log('res data.id = ', data.id, data.props_contract, data.locked_expiration, data.signature);
+            }
+            // return;
+
+
+            await GeneralRent.connect(owner).startRent(data.id, data.props_contract, data.locked_expiration, data.signature);
+            const rent = await GeneralRent.connect(owner).rentIdToRent(data.id);
+            const rentDeposit = BigInt(rent[4]);
+            const stopped = rent[6];
+
+            console.log('rent = ', rent, rentDeposit, stopped)
+
+            expect(rentDeposit).to.equal(BigInt(n)*BigInt(n)*BigInt(2)*bitmapExchangeRate)
+            expect(stopped).to.equal(false);
+        });
+    });
+
+    return;
 
     describe('startRent 2', function () {
         it('check owner balance change.', async function () {
