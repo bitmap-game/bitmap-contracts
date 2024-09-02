@@ -337,7 +337,7 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
 
     /**
     * @dev Signature verification function.
-    * Calculate the hash with four parameters(_rentId, _nonce, _n_expiration), and verify it.
+    * Calculate the hash with four parameters(_rentId, _n, _expiration), and verify it.
     */
     function verifyRentSignature(string memory _rentId, uint256 _n, uint256 _expiration, bytes calldata _signature) public view returns (bool){
         bytes memory data = abi.encode(msg.sender, _rentId, address (this), _n, _expiration);
