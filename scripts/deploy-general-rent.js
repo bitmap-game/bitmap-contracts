@@ -43,6 +43,12 @@ async function main() {
         process.env.OnePropsAmount);
     await tx.wait(1);
     console.log("init ok")
+    console.log("...", process.env.INITIAL_OWNER,
+        process.env.StakeContract,
+        process.env.Signer,
+        process.env.RentToken,
+        process.env.OnePropsAmount)
+
 
     deployOutput.generalRentContract = generalRentContract.target;
     fs.writeFileSync(pathOutputJson, JSON.stringify(deployOutput, null, 1));
