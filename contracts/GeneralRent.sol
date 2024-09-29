@@ -346,6 +346,12 @@ contract GeneralRent is OwnableUpgradeable, IRewardContract {
         return receivedAddress != address(0) && receivedAddress == signer;
     }
 
+    function signData(address sender, string memory _rentId, address rentContract, uint256 _n, uint256 _expiration) public view returns (bytes32){
+        bytes memory data = abi.encode(sender, _rentId, rentContract, _n, _expiration);
+        bytes32 hash = keccak256(data);
+        return hash;
+    }
+
     /**
     * @dev Withdraw reward by the external stake contract, Pick up address, must be specified stake contract address.
     * (external interface function)

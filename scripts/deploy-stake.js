@@ -4,6 +4,10 @@ const path = require('path');
 const fs = require('fs');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const pathOutputJson = path.join(__dirname, '../deploy_output_stake.json');
 let deployOutput = {};
 if (fs.existsSync(pathOutputJson)) {
@@ -35,6 +39,8 @@ async function main() {
     console.log('merlStakeContract deployed to:', merlStakeContract.target);
     deployOutput.merlStakeContract = merlStakeContract.target;
     fs.writeFileSync(pathOutputJson, JSON.stringify(deployOutput, null, 1));
+
+    await sleep(1000*5);
 
     const tx = await merlStakeContract.initialize(process.env.INITIAL_OWNER,
         process.env.MerlContract);

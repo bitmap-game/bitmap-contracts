@@ -64,17 +64,36 @@ describe("Test GeneralRent Contract", function () {
 
             console.log('req = ', owner.address, generalRentAddress, n);
 
-            const res = await renterRequest(owner.address, '0x09C824554840Aed574A3eBe9394fD6e9B5fa6eA7', n);
-            const data = res.data.data
-            console.log('res.data = ', data);
-            if (data !== 'undefined') {
-                console.log('res data.id = ', data.id, data.props_contract, data.locked_expiration, data.signature);
-            }
+            // const res = await renterRequest(owner.address, '0x09C824554840Aed574A3eBe9394fD6e9B5fa6eA7', n);
+            // const data = res.data.data
+            // console.log('res.data = ', data);
+            // if (data !== 'undefined') {
+            //     console.log('res data.id = ', data.id, data.props_contract, data.locked_expiration, data.signature);
+            // }
             // return;
 
+            // function signData(address sender, string memory _rentId, address rentContract, uint256 _n, uint256 _expiration, bytes calldata _signature) public view returns (bool){
+            //     bytes memory data = abi.encode(sender, _rentId, rentContract, _n, _expiration);
+            //     bytes32 hash = keccak256(data);
+            //     return hash;
+            // }
 
-            await GeneralRent.connect(owner).startRent(data.id, data.props_contract, data.locked_expiration, data.signature);
-            const rent = await GeneralRent.connect(owner).rentIdToRent(data.id);
+            // const generalRentAddress = await GeneralRent.getAddress()
+
+
+            const msgHash = await GeneralRent.connect(owner).signData(owner.address, '666666666', generalRentAddress, 1, 1825264993);
+
+            const privateKey = '8041dcf17a0dad882c2ed3f05c43267b11fc1b955a890af30d90b1fca016e334';
+            const wallet = new ethers.Wallet(privateKey);
+            const signature = await wallet.signMessage(msgHash);
+
+            console.log('signature = ', signature)
+
+            await GeneralRent.connect(owner).startRent('666666666', generalRentAddress, 1825264993, signature);
+
+
+            // await GeneralRent.connect(owner).startRent(data.id, data.props_contract, data.locked_expiration, data.signature);
+            const rent = await GeneralRent.connect(owner).rentIdToRent('666666666');
             const rentDeposit = BigInt(rent[4]);
             const stopped = rent[6];
 

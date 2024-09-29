@@ -27,7 +27,7 @@ module.exports = {
     },
     btclayer2: {
       url: `${process.env.NETWORK_URL}`,
-      timeout: 40000000,
+      timeout: 80000000,
       accounts: [`${process.env.PRIVATE_KEY}`],
       // gas: 30000000,
       // gasPrice: 60000000,
