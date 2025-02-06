@@ -10,13 +10,13 @@ contract MerlSingleStake is OwnableUpgradeable {
     uint256 public constant SCALE_FACTOR = 1e18;
     uint256 public constant SECONDS_PER_DAY = 86400;
     uint256 public constant DAYS_PER_YEAR = 365;
-    uint256 public constant UNSTAKING_DAYS = 7;
     uint256 public constant APY_SCALE_FACTOR = 1e6;
     address public pauseAdmin;
     bool public paused;
     uint256 private _nonReentrantStatus;
 
     uint256 public currentAPY; //unit: parts per million, example: 30000/1M = 3%
+    uint256 public minUnstakingDays; //default 7
 
     address public merlToken;
     address public rewardFromAddress;
@@ -71,10 +71,22 @@ contract MerlSingleStake is OwnableUpgradeable {
         uint256 claimTimestamp
     );
 
+    event UpdateRewardFromAddress(
+        address msgSender,
+        address oldRewardFromAddress,
+        address rewardFromAddress
+    );
+
     event UpdateAPY(
         address msgSender,
         uint256 oldAPY,
         uint256 currentAPY
+    );
+
+    event UpdateMinUnstakingDays(
+        address msgSender,
+        uint256 oldMinUnstakingDays,
+        uint256 minUnstakingDays
     );
 
     event PauseAdminChanged(
@@ -123,15 +135,18 @@ contract MerlSingleStake is OwnableUpgradeable {
     onlyValidAddress(_rewardContract) initializer {
         merlToken = _merlToken;
         rewardFromAddress = _rewardContract;
+        emit UpdateRewardFromAddress(msg.sender, address (0), rewardFromAddress);
 
         currentAPY = _APY; //default 30000
         emit UpdateAPY(msg.sender, 0, currentAPY);
+
+        minUnstakingDays = 7; //default 7
+        emit UpdateMinUnstakingDays(msg.sender, 0, minUnstakingDays);
 
         // Initialize OZ contracts
         __Ownable_init_unchained(_initialOwner);
     }
 
-    //new
     function stakeMerl(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount >= ONE_MERL, "at least 1 MERL");
 
@@ -156,11 +171,10 @@ contract MerlSingleStake is OwnableUpgradeable {
         );
     }
 
-    //new
     function unstakeMerl(uint256 _amount) external whenNotPaused nonReentrant {
         Stake storage stake = accountToStake[msg.sender];
         require(_amount > 0, "invalid _amount");
-        require(stake.merl >= _amount, "Insufficient deposit");
+        require(stake.merl >= _amount, "insufficient unstaking merl");
         require(!stake.unstaking, "it is unstaking state"); //必须是没有unstaked才能操作
 
         address staker = msg.sender;
@@ -189,18 +203,17 @@ contract MerlSingleStake is OwnableUpgradeable {
         );
     }
 
-    //new
     function claimReward() external whenNotPaused nonReentrant {
         address staker = msg.sender;
         Stake storage stake = accountToStake[staker];
         require(stake.account != address (0), "invalid user");
         require(stake.unstaking, "it is not unstaking state"); //必须是unstaked才能操作
-        require(stake.unstakingTimestamp > UNSTAKING_DAYS * SECONDS_PER_DAY, "it is not time to claim reward"); //unstake7天后解锁,并且设置unstaked=false
+        require(stake.unstakingTimestamp > minUnstakingDays * SECONDS_PER_DAY, "it is not time to claim reward"); //unstake7天后解锁,并且设置unstaked=false
 
-        IERC20(merlToken).transfer(staker, stake.unstakingMerl); //unstakingMerl
+        IERC20(merlToken).transfer(staker, stake.unstakingMerl); //unstaking merl
         require(stake.unstakingReward > 0, "claim invalid amount");
         require(IERC20(merlToken).balanceOf(rewardFromAddress) > stake.unstakingReward, "insufficient claim reward");
-        IERC20(merlToken).transferFrom(rewardFromAddress, staker, stake.unstakingReward); //unstakingReward
+        IERC20(merlToken).transferFrom(rewardFromAddress, staker, stake.unstakingReward); //unstaking reward
 
         stake.unstaking = false;
         stake.unstakingTimestamp = 0;
@@ -215,14 +228,12 @@ contract MerlSingleStake is OwnableUpgradeable {
         );
     }
 
-    //new
     function getStakeInfo(address _account) public view returns (Stake memory) {
         Stake memory stakeMem = accountToStake[_account];
         stakeMem.rewards.scaledSettledRewardPerMerl = _unscale(stakeMem.rewards.scaledSettledRewardPerMerl);
         return (stakeMem);
     }
 
-    //new
     function getStakeInfoRealTime(address _account) external view returns (Stake memory) {
         Stake memory stakeMem = accountToStake[_account];
         uint256 scaledRangePerMerl = getScaledRangeRewardPerMerl();
@@ -235,14 +246,12 @@ contract MerlSingleStake is OwnableUpgradeable {
         return (stakeMem);
     }
 
-    //new
     function getTotalRewardInfo() public view returns(uint256,GlobalReward memory) {
         GlobalReward memory globalRewardMem = globalReward;
         globalRewardMem.scaledTotalRewardsPerMerl = _unscale(globalRewardMem.scaledTotalRewardsPerMerl);
         return (totalMerl, globalRewardMem);
     }
 
-    //new
     function getTotalRewardInfoRealTime() external view returns(uint256,GlobalReward memory) {
         GlobalReward memory globalRewardMem = globalReward;
         uint256 scaledRangePerMerl = getScaledRangeRewardPerMerl();
@@ -254,14 +263,12 @@ contract MerlSingleStake is OwnableUpgradeable {
         return (totalMerl, globalRewardMem);
     }
 
-    //new
     function _getRangeReward() internal view returns(uint256){
         uint256 rewordPerSecond = _rewardPerSecond(totalMerl);
         uint256 interval = block.timestamp - globalReward.updateTimestamp;
         return rewordPerSecond * interval;
     }
 
-    //new
     function getScaledRangeRewardPerMerl() public view returns(uint256){
         uint256 rangeReward = _getRangeReward();
         uint256 scaledRangeRewardPerMerl = 0;
@@ -271,7 +278,6 @@ contract MerlSingleStake is OwnableUpgradeable {
         return scaledRangeRewardPerMerl;
     }
 
-    //new
     function _settleGlobalReward() internal {
         uint256 rangeReward = _getRangeReward();
         if (rangeReward == 0) {
@@ -285,7 +291,6 @@ contract MerlSingleStake is OwnableUpgradeable {
         globalReward.updateTimestamp = block.timestamp;
     }
 
-    //new
     function _settleAccountReward(address account) internal {
         Stake storage stake = accountToStake[account];
         if (stake.rewards.settledTimestamp == 0) {
@@ -324,6 +329,17 @@ contract MerlSingleStake is OwnableUpgradeable {
         return amount * currentAPY / APY_SCALE_FACTOR / DAYS_PER_YEAR / SECONDS_PER_DAY;
     }
 
+    function updateRewardFromAddress(address _rewardFromAddress) external onlyOwner {
+        require(_rewardFromAddress != address (0), "invalid _rewardFromAddress");
+
+        address oldRewardFromAddress = rewardFromAddress;
+        rewardFromAddress = _rewardFromAddress;
+        emit UpdateRewardFromAddress(
+            msg.sender,
+            oldRewardFromAddress,
+            rewardFromAddress);
+    }
+
     function updateAPY(uint256 _APY) external onlyOwner {
         require(_APY > 0, "invalid _APY");
 
@@ -335,6 +351,17 @@ contract MerlSingleStake is OwnableUpgradeable {
             msg.sender,
             oldAPY,
             currentAPY);
+    }
+
+    function updateMinUnstakingDays(uint256 _minUnstakingDays) external onlyOwner {
+        require(_minUnstakingDays > 0, "invalid _minUnstakingDays");
+
+        uint256 oldMinUnstakingDays = minUnstakingDays;
+        minUnstakingDays = _minUnstakingDays;
+        emit UpdateMinUnstakingDays(
+            msg.sender,
+            oldMinUnstakingDays,
+            minUnstakingDays);
     }
 
     //Pause ...
