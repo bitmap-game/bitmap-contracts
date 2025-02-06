@@ -15,13 +15,12 @@ contract MerlSingleStake is OwnableUpgradeable {
     bool public paused;
     uint256 private _nonReentrantStatus;
 
-    uint256 public currentAPY; //unit: parts per million, example: 30000/1M = 3%
+    uint256 public currentAPY; //unit: parts per million, example: 10000/1M = 1%
     uint256 public minUnstakingDays; //default 7
-
-    address public merlToken;
     address public rewardFromAddress;
-    uint256 public totalMerl;
+    address public merlToken;
 
+    uint256 public totalMerl;
     struct GlobalReward {
         uint256 scaledTotalRewardsPerMerl;
         uint256 totalRewardsEarned;
