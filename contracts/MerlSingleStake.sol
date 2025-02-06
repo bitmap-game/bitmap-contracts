@@ -8,9 +8,15 @@ contract MerlSingleStake is OwnableUpgradeable {
     string public constant version = "1.0.0";
     uint256 public constant ONE_MERL = 1e18;
     uint256 public constant SCALE_FACTOR = 1e18;
+    uint256 public constant SECONDS_PER_DAY = 86400;
+    uint256 public constant DAYS_PER_YEAR = 365;
+    uint256 public constant UNSTAKING_DAYS = 7;
+    uint256 public constant APY_SCALE_FACTOR = 1e6;
     address public pauseAdmin;
     bool public paused;
     uint256 private _nonReentrantStatus;
+
+    uint256 public currentAPY; //unit: parts per million, example: 30000/1M = 3%
 
     address public merlToken;
     address public rewardFromAddress;
@@ -63,6 +69,12 @@ contract MerlSingleStake is OwnableUpgradeable {
         uint256 claimTimestamp
     );
 
+    event UpdateAPY(
+        address msgSender,
+        uint256 oldAPY,
+        uint256 currentAPY
+    );
+
     event PauseAdminChanged(
         address adminSetter,
         address oldAddress,
@@ -101,13 +113,17 @@ contract MerlSingleStake is OwnableUpgradeable {
     function initialize(
         address _initialOwner,
         address _merlToken,
-        address _rewardContract
+        address _rewardContract,
+        address _APY
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_merlToken)
     onlyValidAddress(_rewardContract) initializer {
         merlToken = _merlToken;
         rewardFromAddress = _rewardContract;
+
+        currentAPY = _APY; //default 30000
+        emit UpdateAPY(msg.sender, 0, currentAPY);
 
         // Initialize OZ contracts
         __Ownable_init_unchained(_initialOwner);
@@ -176,13 +192,15 @@ contract MerlSingleStake is OwnableUpgradeable {
         address staker = msg.sender;
         Stake storage stake = accountToStake[staker];
         require(stake.account != address (0), "invalid user");
-        require(stake.unstaking, "it is not unstaking"); //必须是unstaked才能操作
-        require(stake.unstakingTime > 86400 * 7, "it is unstaking in 7 days"); //unstake7天后解锁,并且设置unstaked=false
+        require(stake.unstaking, "it is not unstaking state"); //必须是unstaked才能操作
+        require(stake.unstakingTime > UNSTAKING_DAYS * SECONDS_PER_DAY, "it is not time to claim reward"); //unstake7天后解锁,并且设置unstaked=false
 
         IERC20(merlToken).transfer(staker, stake.unstakingMerl); //unstakingMerl
         stake.unstaking = false;
         stake.unstakingTime = 0;
 
+        //todo 判断rewardAddress是不是有这么多才行？否则，提取奖励可能失败
+        //check IERC20(rewardContract).balance(merlToken) > stake.unstakingReward;
         require(stake.unstakingReward > 0, "claim invalid amount");
         IERC20(merlToken).transferFrom(rewardFromAddress, to, stake.unstakingReward); //unstakingReward
         stake.updateTimestamp = block.timestamp;
@@ -239,7 +257,9 @@ contract MerlSingleStake is OwnableUpgradeable {
 
     //new
     function _getRangeReward() internal returns(uint256){
-        return totalMerl * apy / 365 / 86400;
+        uint256 rewordPerSecond = _rewardPerSecond(totalMerl);
+        uint256 interval = block.timestamp - globalReward.updateTimestamp;
+        return rewordPerSecond * interval;
     }
 
     //new
@@ -254,11 +274,6 @@ contract MerlSingleStake is OwnableUpgradeable {
         globalReward.scaledTotalRewardsPerMerl += scaledRangeRewardPerMerl;
         globalReward.totalRewardsEarned = totalReward;
         globalReward.updateTimestamp = block.timestamp;
-
-        //todo 新增奖励，判断rewardContract是不是有这么多才行？否则，提取奖励可能失败
-        //if (rangeReward > 0) {
-        //    check IERC20(rewardContract).balance(merlToken) > totalReward - globalReward.totalRewardsClaimed;
-        //}
     }
 
     //new
@@ -304,6 +319,23 @@ contract MerlSingleStake is OwnableUpgradeable {
             scaledRangeRewardPerMerl = _scaledRangeRewardPerMerl(totalReward - globalReward.totalRewardsEarned, totalMerl);
         }
         return globalReward.scaledTotalRewardsPerMerl + scaledRangeRewardPerMerl;
+    }
+
+    function _rewardPerSecond(uint256 amount) internal view returns (uint256) {
+        return amount * currentAPY / APY_SCALE_FACTOR / DAYS_PER_YEAR / SECONDS_PER_DAY;
+    }
+
+    function updateAPY(uint256 _APY) external onlyOwner {
+        require(_APY > 0, "invalid _APY");
+
+        _settleGlobalReward();
+
+        uint256 oldAPY = currentAPY;
+        currentAPY = _APY;
+        emit UpdateAPY(
+            msg.sender,
+            oldAPY,
+            currentAPY);
     }
 
     //Pause ...
