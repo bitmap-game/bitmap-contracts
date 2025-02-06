@@ -3,7 +3,6 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./interfaces/IRewardContract.sol";
 
 contract MerlSingleStake is OwnableUpgradeable {
     string public constant version = "1.0.0";
@@ -14,9 +13,9 @@ contract MerlSingleStake is OwnableUpgradeable {
     uint256 private _nonReentrantStatus;
 
     address public merlToken;
-    address public rewardContract;
-
+    address public rewardFromAddress;
     uint256 totalMerl;
+
     struct GlobalReward {
         uint256 scaledTotalRewardsPerMerl;
         uint256 totalRewardsEarned;
@@ -36,10 +35,11 @@ contract MerlSingleStake is OwnableUpgradeable {
         address account;
         uint256 merl;
 
-//        mapping(address => AccountReward) rewards;
         AccountReward rewards;
 
-        bool unstaked;
+        bool unstaking;
+        uint256 unstakeMerl;
+        uint256 unstakeReward;
         uint256 unstakedTime;
 
         uint256 updateTimestamp;
@@ -108,7 +108,7 @@ contract MerlSingleStake is OwnableUpgradeable {
     onlyValidAddress(_merlToken)
     onlyValidAddress(_rewardContract) initializer {
         merlToken = _merlToken;
-        rewardContract = _rewardContract;
+        rewardFromAddress = _rewardContract;
 
         // Initialize OZ contracts
         __Ownable_init_unchained(_initialOwner);
@@ -141,12 +141,8 @@ contract MerlSingleStake is OwnableUpgradeable {
     function unstakeMerl(uint256 _amount) external whenNotPaused nonReentrant {
         require(_amount > 0, "invalid _amount");
         require(accountToStake[msg.sender].merl >= _amount, "Insufficient deposit");
-
-        //必须是没有unstaked才能操作
-        require(!accountToStake[staker].unstaked, "it is unstaking");
-
-        //在claim时候判断时间，时间到了claim并且设置unstaked=false
-        //require(accountToStake[staker].unstakedTime > 86400 * 7, "it is unstaking");
+        require(!accountToStake[staker].unstaking, "it is unstaking"); //必须是没有unstaked才能操作
+        //require(accountToStake[staker].unstakedTime > 86400 * 7, "it is unstaking"); //在claim时候判断时间，时间到了claim并且设置unstaked=false
 
         address staker = msg.sender;
 
@@ -155,8 +151,16 @@ contract MerlSingleStake is OwnableUpgradeable {
 
         _settleAccountReward(staker);
         accountToStake[staker].merl -= _amount;
-        accountToStake[staker].unstaked = true;
+        accountToStake[staker].unstaking = true;
+        accountToStake[staker].unstakeMerl = _amount;
         accountToStake[staker].unstakedTime = time.Block;
+
+        //calc newClaimReward
+        AccountReward storage accountReward = accountToStake[staker].rewards;
+        uint256 newClaimReward = accountReward.settledRewardsEarned - accountReward.rewardsClaimed;
+        accountReward.rewardsClaimed += newClaimReward;
+        globalReward.totalRewardsClaimed += newClaimReward;
+        accountToStake[staker].unstakeReward = newClaimReward;
 
         emit UnstakeMerl(
             staker,
@@ -166,27 +170,33 @@ contract MerlSingleStake is OwnableUpgradeable {
 
     //new
     function claimReward() external whenNotPaused nonReentrant {
-        require(accountToStake[msg.sender].account != address (0), "invalid user");
-
-        //必须是unstaked才能操作
-        require(accountToStake[staker].unstaked, "it is not unstaking");
-
-        //在claim时候判断时间，时间到了claim并且设置unstaked=false
-        require(accountToStake[staker].unstakedTime > 86400 * 7, "it is unstaking");
-
+        address staker = msg.sender;
+        require(accountToStake[staker].account != address (0), "invalid user");
+        require(accountToStake[staker].unstaking, "it is not unstaking"); //必须是unstaked才能操作
+        require(accountToStake[staker].unstakedTime > 86400 * 7, "it is unstaking in 7 days"); //在claim时候判断时间，时间到了claim并且设置unstaked=false
 
         //也可以不做结算，做了可以加快结算
         _settleGlobalReward();
-        _settleAccountReward(msg.sender);
+        _settleAccountReward(staker);
 
         //unstake7天后解锁，claim时候进行处理
         //本金unstake
-        IERC20(merlToken).transfer(staker, _amount);
-        accountToStake[staker].unstaked = false;
+        IERC20(merlToken).transfer(staker, accountToStake[staker].unstakeMerl);
+        accountToStake[staker].unstaking = false;
         accountToStake[staker].unstakedTime = 0;
 
         //奖励unstake
-        _withdrawReward(msg.sender);
+        uint256 newRewardsClaimed = accountToStake[staker].unstakeReward;
+        require(newRewardsClaimed > 0, "claim invalid amount");
+        IERC20(merlToken).transferFrom(rewardFromAddress, to, newRewardsClaimed);
+
+        emit ClaimReward(
+            to,
+            rewardFromAddress,
+            merlToken,
+            newRewardsClaimed,
+            block.timestamp
+        );
     }
 
     //new
@@ -234,28 +244,6 @@ contract MerlSingleStake is OwnableUpgradeable {
         uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl();
         uint256 lastTotalClaimedReward = globalRewards.totalRewardsClaimed;
         return (totalMerl, currentTotalReward, lastTotalClaimedReward, block.timestamp, _unscale(currentScaledTotalRewardPerMel));
-    }
-
-
-    //new
-    function _withdrawReward(address to) internal {
-        Stake storage stake = accountToStake[to];
-        AccountReward storage accountReward = stake.rewards;
-        uint256 currentClaimReward = accountReward.settledRewardsEarned - accountReward.rewardsClaimed;
-
-        accountReward.rewardsClaimed += currentClaimReward;
-        globalReward.totalRewardsClaimed += currentClaimReward;
-
-        require(currentClaimReward >0, "withdraw invalid amount");
-        IERC20(merlToken).transfer(to, currentClaimReward);
-
-        emit ClaimReward(
-            to,
-            merlToken,
-            rewardToken,
-            currentClaimReward,
-            block.timestamp
-        );
     }
 
     //new
