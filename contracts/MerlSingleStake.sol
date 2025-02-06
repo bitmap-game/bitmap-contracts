@@ -146,8 +146,8 @@ contract MerlSingleStake is OwnableUpgradeable {
         }
         _settleAccountReward(staker);
         stake.merl += _amount;
-        stake.updateTimestamp = block.timestamp;
 
+        stake.updateTimestamp = block.timestamp;
         emit StakeMerl(
             staker,
             _amount
@@ -159,7 +159,7 @@ contract MerlSingleStake is OwnableUpgradeable {
         Stake storage stake = accountToStake[msg.sender];
         require(_amount > 0, "invalid _amount");
         require(stake.merl >= _amount, "Insufficient deposit");
-        require(!stake.unstaking, "it is unstaking"); //必须是没有unstaked才能操作
+        require(!stake.unstaking, "it is unstaking state"); //必须是没有unstaked才能操作
 
         address staker = msg.sender;
 
@@ -168,18 +168,18 @@ contract MerlSingleStake is OwnableUpgradeable {
 
         _settleAccountReward(staker);
         stake.merl -= _amount;
+
         stake.unstaking = true;
         stake.unstakingMerl = _amount;
         stake.unstakingTime = time.Block;
-
         //calc newClaimReward
         AccountReward storage accountReward = stake.rewards;
         uint256 newClaimReward = accountReward.settledRewardsEarned - accountReward.rewardsClaimed;
         accountReward.rewardsClaimed += newClaimReward;
         globalReward.totalRewardsClaimed += newClaimReward;
         stake.unstakingReward = newClaimReward;
-        stake.updateTimestamp = block.timestamp;
 
+        stake.updateTimestamp = block.timestamp;
         emit UnstakeMerl(
             staker,
             stake.unstakingMerl,
@@ -196,15 +196,13 @@ contract MerlSingleStake is OwnableUpgradeable {
         require(stake.unstakingTime > UNSTAKING_DAYS * SECONDS_PER_DAY, "it is not time to claim reward"); //unstake7天后解锁,并且设置unstaked=false
 
         IERC20(merlToken).transfer(staker, stake.unstakingMerl); //unstakingMerl
+        require(stake.unstakingReward > 0, "claim invalid amount");
+        require(IERC20(merlToken).balance(rewardFromAddress) > stake.unstakingReward, "insufficient claim reward");
+        IERC20(merlToken).transferFrom(rewardFromAddress, to, stake.unstakingReward); //unstakingReward
+
         stake.unstaking = false;
         stake.unstakingTime = 0;
-
-        //todo 判断rewardAddress是不是有这么多才行？否则，提取奖励可能失败
-        //check IERC20(rewardContract).balance(merlToken) > stake.unstakingReward;
-        require(stake.unstakingReward > 0, "claim invalid amount");
-        IERC20(merlToken).transferFrom(rewardFromAddress, to, stake.unstakingReward); //unstakingReward
         stake.updateTimestamp = block.timestamp;
-
         emit ClaimReward(
             staker,
             rewardFromAddress,
@@ -218,7 +216,6 @@ contract MerlSingleStake is OwnableUpgradeable {
     //new
     function getStakeInfo(address _account) public view returns (Stake memory) {
         Stake memory stakeMem = accountToStake[_account];
-        //stakeMem.rewards.scaledSettledRewardPerMerl = currentScaledTotalRewardPerMel;
         stakeMem.rewards.scaledSettledRewardPerMerl = _unscale(stakeMem.rewards.scaledSettledRewardPerMerl);
         return (stakeMem);
     }
@@ -226,14 +223,11 @@ contract MerlSingleStake is OwnableUpgradeable {
     //new
     function getStakeInfoRealTime(address _account) external view returns (Stake memory) {
         Stake memory stakeMem = accountToStake[_account];
-        uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl();
-        uint256 scaledRangePerMerl = currentScaledTotalRewardPerMel - stakeMem.rewards.scaledSettledRewardPerMerl;
+        uint256 scaledRangePerMerl = getScaledRangeRewardPerMerl();
         uint256 rangeReward = _unscaleRangeReward(scaledRangePerMerl, stakeMem.merl);
-        uint256 settledReward = stakeMem.rewards.settledRewardsEarned + rangeReward;
 
-        stakeMem.rewards.settledRewardsEarned = settledReward;
-        //stakeMem.rewards.scaledSettledRewardPerMerl = currentScaledTotalRewardPerMel;
-        stakeMem.rewards.scaledSettledRewardPerMerl = _unscale(currentScaledTotalRewardPerMel);
+        stakeMem.rewards.settledRewardsEarned += rangeReward;
+        stakeMem.rewards.scaledSettledRewardPerMerl = _unscale(globalReward.scaledTotalRewardsPerMerl + scaledRangePerMerl);
         stakeMem.rewards.settledTimestamp = block.timestamp;
 
         return (stakeMem);
@@ -249,8 +243,11 @@ contract MerlSingleStake is OwnableUpgradeable {
     //new
     function getTotalRewardInfoRealTime() external view returns(uint256,GlobalReward memory) {
         GlobalReward memory globalRewardMem = globalReward;
-        globalRewardMem.totalRewardsEarned = _getTotalReward();//new
-        globalRewardMem.scaledTotalRewardsPerMerl = _unscale(globalRewardMem.scaledTotalRewardsPerMerl);
+        uint256 scaledRangePerMerl = getScaledRangeRewardPerMerl();
+        uint256 rangeReward = _unscaleRangeReward(scaledRangePerMerl, totalMerl);
+
+        globalRewardMem.totalRewardsEarned += rangeReward;
+        globalRewardMem.scaledTotalRewardsPerMerl = _unscale(globalReward.scaledTotalRewardsPerMerl + scaledRangePerMerl);
         globalRewardMem.updateTimestamp = block.timestamp;
         return (totalMerl, globalRewardMem);
     }
@@ -263,6 +260,16 @@ contract MerlSingleStake is OwnableUpgradeable {
     }
 
     //new
+    function getScaledRangeRewardPerMerl() public view returns(uint256){
+        uint256 rangeReward = _getRangeReward();
+        uint256 scaledRangeRewardPerMerl = 0;
+        if (rangeReward > 0) {
+            scaledRangeRewardPerMerl = _scaledRangeRewardPerMerl(rangeReward, totalMerl);
+        }
+        return scaledRangeRewardPerMerl;
+    }
+
+    //new
     function _settleGlobalReward() internal {
         uint256 rangeReward = _getRangeReward();
         if (rangeReward == 0) {
@@ -272,7 +279,7 @@ contract MerlSingleStake is OwnableUpgradeable {
         uint256 scaledRangeRewardPerMerl = _scaledRangeRewardPerMerl(rangeReward, totalMerl);
 
         globalReward.scaledTotalRewardsPerMerl += scaledRangeRewardPerMerl;
-        globalReward.totalRewardsEarned = totalReward;
+        globalReward.totalRewardsEarned += rangeReward;
         globalReward.updateTimestamp = block.timestamp;
     }
 
@@ -309,16 +316,6 @@ contract MerlSingleStake is OwnableUpgradeable {
 
     function _unscale(uint256 _amount) internal pure returns(uint256) {
         return _amount / SCALE_FACTOR;
-    }
-
-    //new
-    function getCurrentScaledTotalRewardPerMerl() public view returns(uint256){
-        uint256 totalReward = _getTotalReward(); //new
-        uint256 scaledRangeRewardPerMerl = 0;
-        if (totalMerl > 0) {
-            scaledRangeRewardPerMerl = _scaledRangeRewardPerMerl(totalReward - globalReward.totalRewardsEarned, totalMerl);
-        }
-        return globalReward.scaledTotalRewardsPerMerl + scaledRangeRewardPerMerl;
     }
 
     function _rewardPerSecond(uint256 amount) internal view returns (uint256) {
