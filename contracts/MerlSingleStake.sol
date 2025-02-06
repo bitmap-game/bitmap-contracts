@@ -14,13 +14,12 @@ contract MerlSingleStake is OwnableUpgradeable {
 
     address public merlToken;
     address public rewardFromAddress;
-    uint256 totalMerl;
+    uint256 public totalMerl;
 
     struct GlobalReward {
         uint256 scaledTotalRewardsPerMerl;
         uint256 totalRewardsEarned;
         uint256 totalRewardsClaimed;
-
         uint256 updateTimestamp;
     }
     GlobalReward public globalReward;
@@ -131,6 +130,7 @@ contract MerlSingleStake is OwnableUpgradeable {
         }
         _settleAccountReward(staker);
         stake.merl += _amount;
+        stake.updateTimestamp = block.timestamp;
 
         emit StakeMerl(
             staker,
@@ -162,6 +162,7 @@ contract MerlSingleStake is OwnableUpgradeable {
         accountReward.rewardsClaimed += newClaimReward;
         globalReward.totalRewardsClaimed += newClaimReward;
         stake.unstakingReward = newClaimReward;
+        stake.updateTimestamp = block.timestamp;
 
         emit UnstakeMerl(
             staker,
@@ -184,6 +185,7 @@ contract MerlSingleStake is OwnableUpgradeable {
 
         require(stake.unstakingReward > 0, "claim invalid amount");
         IERC20(merlToken).transferFrom(rewardFromAddress, to, stake.unstakingReward); //unstakingReward
+        stake.updateTimestamp = block.timestamp;
 
         emit ClaimReward(
             staker,
@@ -196,55 +198,48 @@ contract MerlSingleStake is OwnableUpgradeable {
     }
 
     //new
-    function getStakeInfo(address _account) public view returns (uint256,uint256,uint256,uint256,uint256) {
-        Stake storage stake = accountToStake[_account];
-        uint256 lastUpdateTimestamp = globalReward.updateTimestamp;
-        uint256 lastScaledTotalRewardPerMel = globalReward.scaledTotalRewardsPerMerl;
-        uint256 scaledRangePerMerl = lastScaledTotalRewardPerMel - stake.reward.scaledSettledRewardPerMerl;
-        uint256 rangeReward = _unscaleRangeReward(scaledRangePerMerl, stake.merl);
-        uint256 settledReward = stake.rewards.settledRewardsEarned + rangeReward;
-        return (stake.merl, settledReward, stake.rewards.rewardsClaimed, lastUpdateTimestamp, _unscale(lastScaledTotalRewardPerMel));
+    function getStakeInfo(address _account) public view returns (Stake memory) {
+        Stake memory stakeMem = accountToStake[_account];
+        //stakeMem.rewards.scaledSettledRewardPerMerl = currentScaledTotalRewardPerMel;
+        stakeMem.rewards.scaledSettledRewardPerMerl = _unscale(stakeMem.rewards.scaledSettledRewardPerMerl);
+        return (stakeMem);
     }
 
     //new
-    function getStakeInfoRealTime(address _account) external view returns (uint256,uint256,uint256,uint256,uint256) {
-        Stake storage stake = accountToStake[_account];
+    function getStakeInfoRealTime(address _account) external view returns (Stake memory) {
+        Stake memory stakeMem = accountToStake[_account];
         uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl();
-        uint256 scaledRangePerMerl = currentScaledTotalRewardPerMel - stake.rewards.scaledSettledRewardPerMerl;
-        uint256 rangeReward = _unscaleRangeReward(scaledRangePerMerl, stake.merl);
-        uint256 settledReward = stake.rewards.settledRewardsEarned + rangeReward;
-        return (stake.merl, settledReward, stake.rewards.rewardsClaimed, block.timestamp, _unscale(currentScaledTotalRewardPerMel));
+        uint256 scaledRangePerMerl = currentScaledTotalRewardPerMel - stakeMem.rewards.scaledSettledRewardPerMerl;
+        uint256 rangeReward = _unscaleRangeReward(scaledRangePerMerl, stakeMem.merl);
+        uint256 settledReward = stakeMem.rewards.settledRewardsEarned + rangeReward;
+
+        stakeMem.rewards.settledRewardsEarned = settledReward;
+        //stakeMem.rewards.scaledSettledRewardPerMerl = currentScaledTotalRewardPerMel;
+        stakeMem.rewards.scaledSettledRewardPerMerl = _unscale(currentScaledTotalRewardPerMel);
+        stakeMem.rewards.settledTimestamp = block.timestamp;
+
+        return (stakeMem);
     }
 
     //new
-    function getAccountReward(address _account) external view returns (AccountReward memory) {
-        Stake storage stake = accountToStake[_account];
-        require(stake.account != address (0), "_account not exists");
-        AccountReward memory accountReward = accountToStake[_account].rewards;
-        accountReward.scaledSettledRewardPerMerl = _unscale(accountReward.scaledSettledRewardPerMerl);
-        return accountReward;
+    function getTotalRewardInfo() public view returns(uint256,GlobalReward memory) {
+        GlobalReward memory globalRewardMem = globalReward;
+        globalRewardMem.scaledTotalRewardsPerMerl = _unscale(globalRewardMem.scaledTotalRewardsPerMerl);
+        return (totalMerl, globalRewardMem);
     }
 
     //new
-    function getTotalRewardInfo() public view returns(uint256,uint256,uint256,uint256,uint256) {
-        uint256 lastTotalReward = globalReward.totalRewardsEarned;
-        uint256 lastScaledTotalRewardPerMel = globalReward.scaledTotalRewardsPerMerl;
-        uint256 lastTotalClaimedReward = globalReward.totalRewardsClaimed;
-        uint256 lastUpdateTimestamp = globalReward.updateTimestamp;
-        return (totalMerl, lastTotalReward, lastTotalClaimedReward, lastUpdateTimestamp, _unscale(lastScaledTotalRewardPerMel));
-    }
-
-    //new
-    function getTotalRewardInfoRealTime() external view returns(uint256,uint256,uint256,uint256,uint256) {
-        uint256 currentTotalReward = _getTotalReward();//new
-        uint256 currentScaledTotalRewardPerMel = getCurrentScaledTotalRewardPerMerl();
-        uint256 lastTotalClaimedReward = globalRewards.totalRewardsClaimed;
-        return (totalMerl, currentTotalReward, lastTotalClaimedReward, block.timestamp, _unscale(currentScaledTotalRewardPerMel));
+    function getTotalRewardInfoRealTime() external view returns(uint256,GlobalReward memory) {
+        GlobalReward memory globalRewardMem = globalReward;
+        globalRewardMem.totalRewardsEarned = _getTotalReward();//new
+        globalRewardMem.scaledTotalRewardsPerMerl = _unscale(globalRewardMem.scaledTotalRewardsPerMerl);
+        globalRewardMem.updateTimestamp = block.timestamp;
+        return (totalMerl, globalRewardMem);
     }
 
     //new
     function _getRangeReward() internal returns(uint256){
-        return 1;
+        return totalMerl * apy / 365 / 86400;
     }
 
     //new
@@ -254,18 +249,16 @@ contract MerlSingleStake is OwnableUpgradeable {
             globalReward.updateTimestamp = block.timestamp;
             return;
         }
-
-        uint256 totalMerl = globalReward.totalRewardsEarned + rangeReward;
         uint256 scaledRangeRewardPerMerl = _scaledRangeRewardPerMerl(rangeReward, totalMerl);
 
         globalReward.scaledTotalRewardsPerMerl += scaledRangeRewardPerMerl;
         globalReward.totalRewardsEarned = totalReward;
         globalReward.updateTimestamp = block.timestamp;
 
-        //新增奖励，判断rewardContract是不是有这么多才行？否则，提取奖励可能失败
-//        if (rangeReward > 0) {
-//            check IERC20(rewardContract).balance(merlToken) > totalReward - globalReward.totalRewardsClaimed;
-//        }
+        //todo 新增奖励，判断rewardContract是不是有这么多才行？否则，提取奖励可能失败
+        //if (rangeReward > 0) {
+        //    check IERC20(rewardContract).balance(merlToken) > totalReward - globalReward.totalRewardsClaimed;
+        //}
     }
 
     //new
