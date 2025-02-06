@@ -45,7 +45,7 @@ contract MerlSingleStake is OwnableUpgradeable {
         bool unstaking;
         uint256 unstakingMerl;
         uint256 unstakingReward;
-        uint256 unstakingTime;
+        uint256 unstakingTimestamp;
 
         uint256 updateTimestamp;
     }
@@ -58,14 +58,16 @@ contract MerlSingleStake is OwnableUpgradeable {
 
     event UnstakeMerl(
         address msgSender,
-        uint256 amount
+        uint256 unstakingMerl,
+        uint256 unstakingReward
     );
 
     event ClaimReward(
         address msgSender,
-        address rewardContract,
-        address rewardToken,
-        uint256 amount,
+        address rewardFrom,
+        address rewardTo,
+        uint256 unstakingMerl,
+        uint256 unstakingReward,
         uint256 claimTimestamp
     );
 
@@ -114,7 +116,7 @@ contract MerlSingleStake is OwnableUpgradeable {
         address _initialOwner,
         address _merlToken,
         address _rewardContract,
-        address _APY
+        uint256 _APY
     ) external
     onlyValidAddress(_initialOwner)
     onlyValidAddress(_merlToken)
@@ -171,7 +173,7 @@ contract MerlSingleStake is OwnableUpgradeable {
 
         stake.unstaking = true;
         stake.unstakingMerl = _amount;
-        stake.unstakingTime = time.Block;
+        stake.unstakingTimestamp = block.timestamp;
         //calc newClaimReward
         AccountReward storage accountReward = stake.rewards;
         uint256 newClaimReward = accountReward.settledRewardsEarned - accountReward.rewardsClaimed;
@@ -193,20 +195,20 @@ contract MerlSingleStake is OwnableUpgradeable {
         Stake storage stake = accountToStake[staker];
         require(stake.account != address (0), "invalid user");
         require(stake.unstaking, "it is not unstaking state"); //必须是unstaked才能操作
-        require(stake.unstakingTime > UNSTAKING_DAYS * SECONDS_PER_DAY, "it is not time to claim reward"); //unstake7天后解锁,并且设置unstaked=false
+        require(stake.unstakingTimestamp > UNSTAKING_DAYS * SECONDS_PER_DAY, "it is not time to claim reward"); //unstake7天后解锁,并且设置unstaked=false
 
         IERC20(merlToken).transfer(staker, stake.unstakingMerl); //unstakingMerl
         require(stake.unstakingReward > 0, "claim invalid amount");
-        require(IERC20(merlToken).balance(rewardFromAddress) > stake.unstakingReward, "insufficient claim reward");
-        IERC20(merlToken).transferFrom(rewardFromAddress, to, stake.unstakingReward); //unstakingReward
+        require(IERC20(merlToken).balanceOf(rewardFromAddress) > stake.unstakingReward, "insufficient claim reward");
+        IERC20(merlToken).transferFrom(rewardFromAddress, staker, stake.unstakingReward); //unstakingReward
 
         stake.unstaking = false;
-        stake.unstakingTime = 0;
+        stake.unstakingTimestamp = 0;
         stake.updateTimestamp = block.timestamp;
         emit ClaimReward(
             staker,
             rewardFromAddress,
-            to,
+            staker,
             stake.unstakingMerl,
             stake.unstakingReward,
             block.timestamp
@@ -253,7 +255,7 @@ contract MerlSingleStake is OwnableUpgradeable {
     }
 
     //new
-    function _getRangeReward() internal returns(uint256){
+    function _getRangeReward() internal view returns(uint256){
         uint256 rewordPerSecond = _rewardPerSecond(totalMerl);
         uint256 interval = block.timestamp - globalReward.updateTimestamp;
         return rewordPerSecond * interval;
