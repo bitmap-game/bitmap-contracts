@@ -38,9 +38,9 @@ contract MerlSingleStake is OwnableUpgradeable {
         AccountReward rewards;
 
         bool unstaking;
-        uint256 unstakeMerl;
-        uint256 unstakeReward;
-        uint256 unstakedTime;
+        uint256 unstakingMerl;
+        uint256 unstakingReward;
+        uint256 unstakingTime;
 
         uint256 updateTimestamp;
     }
@@ -124,12 +124,13 @@ contract MerlSingleStake is OwnableUpgradeable {
         _settleGlobalReward();
         totalMerl += _amount;
 
-        if (accountToStake[staker].account == address(0)) {
-            accountToStake[staker].account = staker;
-            accountToStake[staker].updateTimestamp = block.timestamp;
+        Stake storage stake = accountToStake[msg.sender];
+        if (stake.account == address(0)) {
+            stake.account = staker;
+            stake.updateTimestamp = block.timestamp;
         }
         _settleAccountReward(staker);
-        accountToStake[staker].merl += _amount;
+        stake.merl += _amount;
 
         emit StakeMerl(
             staker,
@@ -139,10 +140,10 @@ contract MerlSingleStake is OwnableUpgradeable {
 
     //new
     function unstakeMerl(uint256 _amount) external whenNotPaused nonReentrant {
+        Stake storage stake = accountToStake[msg.sender];
         require(_amount > 0, "invalid _amount");
-        require(accountToStake[msg.sender].merl >= _amount, "Insufficient deposit");
-        require(!accountToStake[staker].unstaking, "it is unstaking"); //必须是没有unstaked才能操作
-        //require(accountToStake[staker].unstakedTime > 86400 * 7, "it is unstaking"); //在claim时候判断时间，时间到了claim并且设置unstaked=false
+        require(stake.merl >= _amount, "Insufficient deposit");
+        require(!stake.unstaking, "it is unstaking"); //必须是没有unstaked才能操作
 
         address staker = msg.sender;
 
@@ -150,51 +151,46 @@ contract MerlSingleStake is OwnableUpgradeable {
         totalMerl -= _amount;
 
         _settleAccountReward(staker);
-        accountToStake[staker].merl -= _amount;
-        accountToStake[staker].unstaking = true;
-        accountToStake[staker].unstakeMerl = _amount;
-        accountToStake[staker].unstakedTime = time.Block;
+        stake.merl -= _amount;
+        stake.unstaking = true;
+        stake.unstakingMerl = _amount;
+        stake.unstakingTime = time.Block;
 
         //calc newClaimReward
-        AccountReward storage accountReward = accountToStake[staker].rewards;
+        AccountReward storage accountReward = stake.rewards;
         uint256 newClaimReward = accountReward.settledRewardsEarned - accountReward.rewardsClaimed;
         accountReward.rewardsClaimed += newClaimReward;
         globalReward.totalRewardsClaimed += newClaimReward;
-        accountToStake[staker].unstakeReward = newClaimReward;
+        stake.unstakingReward = newClaimReward;
 
         emit UnstakeMerl(
             staker,
-            _amount
+            stake.unstakingMerl,
+            stake.unstakingReward
         );
     }
 
     //new
     function claimReward() external whenNotPaused nonReentrant {
         address staker = msg.sender;
-        require(accountToStake[staker].account != address (0), "invalid user");
-        require(accountToStake[staker].unstaking, "it is not unstaking"); //必须是unstaked才能操作
-        require(accountToStake[staker].unstakedTime > 86400 * 7, "it is unstaking in 7 days"); //在claim时候判断时间，时间到了claim并且设置unstaked=false
+        Stake storage stake = accountToStake[staker];
+        require(stake.account != address (0), "invalid user");
+        require(stake.unstaking, "it is not unstaking"); //必须是unstaked才能操作
+        require(stake.unstakingTime > 86400 * 7, "it is unstaking in 7 days"); //unstake7天后解锁,并且设置unstaked=false
 
-        //也可以不做结算，做了可以加快结算
-        _settleGlobalReward();
-        _settleAccountReward(staker);
+        IERC20(merlToken).transfer(staker, stake.unstakingMerl); //unstakingMerl
+        stake.unstaking = false;
+        stake.unstakingTime = 0;
 
-        //unstake7天后解锁，claim时候进行处理
-        //本金unstake
-        IERC20(merlToken).transfer(staker, accountToStake[staker].unstakeMerl);
-        accountToStake[staker].unstaking = false;
-        accountToStake[staker].unstakedTime = 0;
-
-        //奖励unstake
-        uint256 newRewardsClaimed = accountToStake[staker].unstakeReward;
-        require(newRewardsClaimed > 0, "claim invalid amount");
-        IERC20(merlToken).transferFrom(rewardFromAddress, to, newRewardsClaimed);
+        require(stake.unstakingReward > 0, "claim invalid amount");
+        IERC20(merlToken).transferFrom(rewardFromAddress, to, stake.unstakingReward); //unstakingReward
 
         emit ClaimReward(
-            to,
+            staker,
             rewardFromAddress,
-            merlToken,
-            newRewardsClaimed,
+            to,
+            stake.unstakingMerl,
+            stake.unstakingReward,
             block.timestamp
         );
     }
